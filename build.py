@@ -19,6 +19,10 @@ from datetime import date
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE = "https://bengurionalon.github.io/alon_bg"   # адрес сайта; поменять при переезде на свой домен
+
+# Адрес Worker'а, который хранит отзывы и реакции.
+# Пустая строка = демонстрация: записи живут только в браузере читателя.
+API = ""
 BOOK = os.path.join(ROOT, "books", "v-soznanie.json")
 
 AUTHOR = "А.Л.О.Н."
@@ -485,7 +489,11 @@ def page_404():
 def page_assets():
     os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
     shutil.copy(os.path.join(ROOT, "src", "site.css"), os.path.join(ROOT, "assets", "site.css"))
-    shutil.copy(os.path.join(ROOT, "src", "site.js"), os.path.join(ROOT, "assets", "site.js"))
+    with open(os.path.join(ROOT, "src", "site.js"), encoding="utf-8") as f:
+        js = f.read()
+    js = js.replace("__ALON_API__", API.rstrip("/"))
+    with open(os.path.join(ROOT, "assets", "site.js"), "w", encoding="utf-8") as f:
+        f.write(js)
 
 
 def page_meta():

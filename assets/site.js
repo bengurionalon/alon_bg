@@ -17,10 +17,72 @@
   }
 
   /* ======== хранилище ========
-     Пока записи живут в браузере читателя. Когда появится сервер, меняется
-     только этот объект: четыре метода, всё остальное остаётся как есть. */
-  var DEMO = true;
-  var Store = (function(){
+     Если задан адрес API (подставляется сборщиком из build.py), записи идут
+     на сервер и видны всем. Если нет — живут в браузере читателя, как демо. */
+  var API = "";
+  if (API.indexOf("__ALON") === 0) API = "";
+  var DEMO = !API;
+
+  /* у каждого браузера свой опознавательный знак: он нужен, чтобы один
+     человек не накручивал счётчик, и не говорит о нём ничего */
+  function voter(){
+    var k = "alon.voter", v = null;
+    try { v = localStorage.getItem(k); } catch(e){}
+    if (!v){
+      v = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : String(Date.now()) + Math.random().toString(36).slice(2);
+      try { localStorage.setItem(k, v); } catch(e){}
+    }
+    return v;
+  }
+
+  var Remote = (function(){
+    function call(path, opts){
+      return fetch(API + path, opts).then(function(r){
+        if (!r.ok) return r.json().catch(function(){ return {}; }).then(function(d){
+          var err = new Error(d.error || ("http " + r.status));
+          err.code = d.error; err.status = r.status;
+          throw err;
+        });
+        return r.json();
+      });
+    }
+    function post(path, data){
+      return call(path, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+    }
+    var mine = {};
+    try { mine = JSON.parse(localStorage.getItem("alon.myreactions") || "{}"); } catch(e){}
+    return {
+      demo: false,
+      tooFast: function(){ return false; },
+      listReviews: function(){
+        return call("/reviews").then(function(rows){
+          return rows.map(function(r){ return {name: r.name, text: r.body, at: r.at, id: r.id}; });
+        });
+      },
+      addReview: function(r){
+        return post("/reviews", {name: r.name, body: r.text, website: ""});
+      },
+      listReactions: function(chapter){
+        return call("/reactions?chapter=" + encodeURIComponent(chapter));
+      },
+      react: function(chapter, pid, was, now){
+        return post("/react", {chapter: chapter, pid: pid, voter: voter(), emoji: now || ""});
+      },
+      myReactions: function(chapter){ return mine[chapter] || {}; },
+      saveMine: function(chapter, map){
+        mine[chapter] = map;
+        try { localStorage.setItem("alon.myreactions", JSON.stringify(mine)); } catch(e){}
+      }
+    };
+  })();
+
+  var Local = (function(){
     var KEY_RV = "alon.reviews", KEY_CM = "alon.reactions",
         KEY_MINE = "alon.myreactions", KEY_RATE = "alon.rate";
     function load(k){
@@ -76,6 +138,8 @@
       }
     };
   })();
+
+  var Store = API ? Remote : Local;
 
   var MONTHS = ["января","февраля","марта","апреля","мая","июня",
                 "июля","августа","сентября","октября","ноября","декабря"];
@@ -324,6 +388,14 @@
         thanks.hidden = false;
         thanks.scrollIntoView({block: "center", behavior: "smooth"});
         return Store.listReviews().then(render);
+      }).catch(function(e){
+        var m = {
+          short: "Нужно не меньше ста символов.",
+          links: "Ссылки в отзывах не публикуются.",
+          name: "Напишите, как к вам обращаться.",
+          "too many": "Слишком часто. Попробуйте позже."
+        }[e && e.code];
+        err(text, $("rvTextErr"), m || "Не удалось отправить. Проверьте связь и попробуйте ещё раз.");
       });
     });
 
@@ -497,6 +569,10 @@
               close();
               p.classList.add("read");
               refresh(p);
+            }).catch(function(){
+              btn.classList.add("failed");
+              setTimeout(function(){ btn.classList.remove("failed"); }, 1500);
+              close();
             });
           });
         });

@@ -292,3 +292,4 @@ details[open] summary{color:var(--accent);margin-bottom:.9rem}
 .err .wrap{padding-block:clamp(3rem,10vw,6rem);max-width:34rem}
 .err h1{font-size:clamp(2rem,6vw,3rem);font-weight:700;letter-spacing:-.02em;margin-bottom:1rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+.pmark.failed{border-color:#C0392B;color:#C0392B}
