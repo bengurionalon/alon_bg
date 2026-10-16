@@ -9,6 +9,7 @@
 Готовые файлы кладутся в корень репозитория и коммитятся вместе с исходниками.
 """
 
+import hashlib
 import html
 import json
 import os
@@ -55,6 +56,22 @@ def minutes(chars):
     return max(1, round(chars / 1400))
 
 
+def tag_paragraphs(src):
+    """Помечает каждый абзац отпечатком его текста.
+
+    Комментарий читателя привязан к этому отпечатку, а не к порядковому номеру,
+    поэтому правка в одном абзаце не отрывает комментарии от всех следующих.
+    """
+    def repl(m):
+        attrs, inner = m.group(1), m.group(2)
+        text = strip_tags(inner)
+        if len(text) < 2:
+            return m.group(0)
+        pid = hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+        return f"<p{attrs} data-p=\"{pid}\">{inner}</p>"
+    return re.sub(r"<p([^>]*)>(.*?)</p>", repl, src, flags=re.S)
+
+
 def head(title, desc, rel, url, extra="", theme_light="#F3EFF8"):
     """Общая шапка документа. rel — путь к корню сайта с текущей страницы."""
     return f"""<!doctype html>
@@ -98,6 +115,7 @@ def header(rel, current=""):
     <a class="mark" href="{rel or './'}">А.Л.О.Н.</a>
     <nav aria-label="Основное меню">
       <a href="{rel}kniga/"{mark('kniga')}>Книга</a>
+      <a href="{rel}otzyvy/"{mark('otzyvy')}>Отзывы</a>
       <a href="{rel}#avtor"{mark('avtor')}>Автор</a>
     </nav>
   </div>
@@ -349,7 +367,7 @@ def page_chapter(b, i):
   <div class="wrap">
     <h1 class="chnum">{c['n']}<span class="vh"> — глава {c['n']} романа «{e(b['title'])}»</span></h1>
     <div class="text" id="chText">
-{c['html']}
+{tag_paragraphs(c['html'])}
     </div>
     <nav class="rnav" aria-label="Переход между главами">
 """
@@ -359,7 +377,10 @@ def page_chapter(b, i):
             if nxt else '      <a class="btn btn-quiet" href="../kniga/">К оглавлению</a>\n')
     out += "    </nav>\n"
     if not nxt:
-        out += f'    <p class="rend">Конец романа<br>{e(b["place"])} · 26.07.{b["year"]}</p>\n'
+        out += (f'    <p class="rend">Конец романа<br>{e(b["place"])} · 26.07.{b["year"]}</p>\n'
+                '    <div class="actions" style="justify-content:center;margin-top:1.6rem">\n'
+                '      <a class="btn btn-quiet" href="../otzyvy/">Оставить отзыв о книге</a>\n'
+                '    </div>\n')
     out += """  </div>
 </main>
 <div class="drawer" id="drawer" hidden>
@@ -377,6 +398,69 @@ def page_chapter(b, i):
     out += footer("../")
     write(f"glava-{c['n']}/index.html", out)
     PAGES.append((f"glava-{c['n']}/", "0.8"))
+
+
+def page_reviews(b):
+    desc = ("Книга отзывов: что читатели пишут о романе «%s». "
+            "Оставьте свой отзыв — автор читает все." % b["title"])
+    schema = ld({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Книга отзывов",
+        "url": f"{SITE}/otzyvy/",
+        "inLanguage": "ru",
+        "about": {"@type": "Book", "name": b["title"], "url": f"{SITE}/kniga/"},
+    })
+    out = head("Книга отзывов — " + AUTHOR, desc, "../", f"{SITE}/otzyvy/", schema)
+    out += '<canvas id="field" aria-hidden="true"></canvas>\n'
+    out += header("../", "otzyvy")
+    out += f"""<main id="main">
+  <div class="band" style="border-top:0">
+    <div class="wrap">
+      <h1 class="page-title">Книга отзывов</h1>
+      <p class="lede">Здесь читатели пишут, что они думают о «{e(b['title'])}». Автор читает все отзывы.</p>
+
+      <form class="form" id="reviewForm" novalidate>
+        <div class="field">
+          <label for="rvName">Как вас зовут</label>
+          <input id="rvName" name="name" type="text" maxlength="40" autocomplete="name" required
+                 placeholder="Имя или ник">
+          <p class="err-msg" id="rvNameErr" hidden></p>
+        </div>
+        <div class="field">
+          <label for="rvText">Отзыв</label>
+          <textarea id="rvText" name="text" rows="6" maxlength="2000" required
+                    placeholder="Что вы думаете о книге? Не меньше ста символов — коротких «понравилось» тут не хватает."></textarea>
+          <p class="counter"><span id="rvCount">0</span> из 100 символов минимум</p>
+          <p class="err-msg" id="rvTextErr" hidden></p>
+        </div>
+        <label class="trap" aria-hidden="true">Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+        <div class="actions">
+          <button class="btn btn-fill" type="submit">Отправить отзыв</button>
+        </div>
+        <p class="demo-note" id="rvDemo" hidden></p>
+      </form>
+
+      <div class="thanks" id="rvThanks" hidden role="status">
+        <p class="thanks-title">Спасибо вам за интерес к творчеству автора</p>
+        <p class="thanks-sub">Ваш отзыв записан.</p>
+        <button class="btn btn-quiet" type="button" id="rvAgain">Написать ещё</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="wrap">
+      <h2 class="kicker"><span id="rvTotal">Отзывы</span></h2>
+      <ul class="reviews" id="rvList"></ul>
+      <p class="empty" id="rvEmpty" hidden>Отзывов пока нет. Ваш будет первым.</p>
+    </div>
+  </div>
+</main>
+"""
+    out += footer("../")
+    write("otzyvy/index.html", out)
+    PAGES.append(("otzyvy/", "0.7"))
 
 
 def page_404():
@@ -423,6 +507,7 @@ def main():
     page_assets()
     page_home(b)
     page_book(b)
+    page_reviews(b)
     for i in range(len(b["chapters"])):
         page_chapter(b, i)
     page_404()
