@@ -21,9 +21,12 @@
      только этот объект: четыре метода, всё остальное остаётся как есть. */
   var DEMO = true;
   var Store = (function(){
-    var KEY_RV = "alon.reviews", KEY_CM = "alon.comments", KEY_RATE = "alon.rate";
+    var KEY_RV = "alon.reviews", KEY_CM = "alon.reactions",
+        KEY_MINE = "alon.myreactions", KEY_RATE = "alon.rate";
     function load(k){
-      try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch(e){ return []; }
+      var empty = (k === KEY_RV) ? "[]" : "{}";
+      try { return JSON.parse(localStorage.getItem(k) || empty); }
+      catch(e){ return JSON.parse(empty); }
     }
     function save(k, v){
       try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; }
@@ -49,21 +52,27 @@
         save(KEY_RV, all);
         return Promise.resolve(r);
       },
-      listComments: function(chapter){
-        var all = load(KEY_CM).filter(function(c){ return c.chapter === chapter; });
-        var by = {};
-        all.sort(function(a, b){ return a.at - b.at; }).forEach(function(c){
-          (by[c.pid] = by[c.pid] || []).push(c);
-        });
-        return Promise.resolve(by);
+      /* реакции: {глава: {абзац: {эмодзи: сколько}}} */
+      listReactions: function(chapter){
+        return Promise.resolve(load(KEY_CM)[chapter] || {});
       },
-      addComment: function(c){
+      react: function(chapter, pid, was, now){
         var all = load(KEY_CM);
-        c.at = Date.now();
-        c.id = String(c.at) + Math.random().toString(36).slice(2, 7);
-        all.push(c);
+        var ch = all[chapter] = all[chapter] || {};
+        var p = ch[pid] = ch[pid] || {};
+        if (was && p[was]) p[was] = Math.max(0, p[was] - 1);
+        if (now) p[now] = (p[now] || 0) + 1;
         save(KEY_CM, all);
-        return Promise.resolve(c);
+        return Promise.resolve(ch);
+      },
+      /* что отметил этот читатель — всегда только у него в браузере */
+      myReactions: function(chapter){
+        return load(KEY_MINE)[chapter] || {};
+      },
+      saveMine: function(chapter, map){
+        var all = load(KEY_MINE);
+        all[chapter] = map;
+        save(KEY_MINE, all);
       }
     };
   })();
@@ -384,42 +393,79 @@
       document.addEventListener("keydown", function(e){ if (e.key === "Escape") shut(); });
     }
 
-    /* ---- комментарии к абзацам ---- */
+    /* ---- реакции к абзацам ---- */
     (function(){
       var EMOJI = ["😮","😨","💔","🔥","😢","🤔","😍","😡"];
-      var MAX = 100;
       var paras = text.querySelectorAll("p[data-p]");
       if (!paras.length) return;
-      var open = null;
+      var counts = {}, mine = Store.myReactions(chapter), open = null;
 
-      Store.listComments(chapter).then(function(by){
-        for (var i = 0; i < paras.length; i++) mark(paras[i], by[paras[i].dataset.p] || []);
+      Store.listReactions(chapter).then(function(data){
+        counts = data;
+        for (var i = 0; i < paras.length; i++) refresh(paras[i]);
+        watch();
       });
 
-      function mark(p, items){
-        var b = p.querySelector(".pmark");
-        if (!b){
-          b = document.createElement("button");
-          b.type = "button";
-          b.className = "pmark";
-          b.setAttribute("aria-expanded", "false");
-          b.addEventListener("click", function(){ toggle(p, b); });
-          p.appendChild(b);
+      /* счётчики проступают, только когда абзац уже прочитан:
+         иначе чужая реакция подсказывает, что будет, до того как человек прочтёт */
+      function watch(){
+        if (!window.IntersectionObserver){
+          for (var i = 0; i < paras.length; i++) paras[i].classList.add("read");
+          return;
         }
-        if (items.length){
-          b.classList.add("has");
-          b.innerHTML = '<span aria-hidden="true">' + items[items.length - 1].emoji + "</span>" + items.length;
-          b.setAttribute("aria-label", "Комментарии к абзацу: " + items.length);
-        } else {
-          b.classList.remove("has");
-          b.textContent = "+";
-          b.setAttribute("aria-label", "Написать об этом абзаце");
+        var io = new IntersectionObserver(function(entries){
+          entries.forEach(function(en){
+            if (en.boundingClientRect.bottom < en.rootBounds.top + 1){
+              en.target.classList.add("read");
+              io.unobserve(en.target);
+            }
+          });
+        }, {rootMargin: "-35% 0px 0px 0px", threshold: 0});
+        for (var i = 0; i < paras.length; i++) io.observe(paras[i]);
+      }
+
+      function refresh(p){
+        var pid = p.dataset.p;
+        var c = counts[pid] || {};
+        var picked = mine[pid] || "";
+        var btn = p.querySelector(".pmark");
+        if (!btn){
+          btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "pmark";
+          btn.setAttribute("aria-expanded", "false");
+          btn.addEventListener("click", function(ev){ ev.stopPropagation(); toggle(p, btn); });
+          p.appendChild(btn);
         }
+        btn.textContent = picked || "+";
+        btn.classList.toggle("picked", !!picked);
+        btn.setAttribute("aria-label", picked
+          ? "Ваша реакция на абзац: " + picked + ". Изменить"
+          : "Отметить реакцию на абзац");
+
+        var pairs = Object.keys(c).filter(function(k){ return c[k] > 0; })
+                      .sort(function(x, y){ return c[y] - c[x]; });
+        var sum = p.querySelector(".rsum");
+        if (!pairs.length){
+          if (sum) sum.remove();
+          return;
+        }
+        if (!sum){
+          sum = document.createElement("span");
+          sum.className = "rsum";
+          p.appendChild(sum);
+        }
+        sum.innerHTML = pairs.slice(0, 4).map(function(k){
+          return '<span class="rchip' + (k === picked ? " mine" : "") + '">'
+               + '<span aria-hidden="true">' + k + "</span>" + c[k] + "</span>";
+        }).join("");
+        sum.setAttribute("aria-label", "Реакции читателей: "
+          + pairs.map(function(k){ return k + " " + c[k]; }).join(", "));
       }
 
       function close(){
         if (!open) return;
-        open.panel.remove();
+        open.pop.remove();
         open.btn.setAttribute("aria-expanded", "false");
         open = null;
       }
@@ -428,102 +474,35 @@
         if (open && open.p === p){ close(); return; }
         close();
         var pid = p.dataset.p;
-        var panel = document.createElement("div");
-        panel.className = "cpanel";
-        panel.innerHTML =
-          '<p class="kicker">Об этом абзаце</p>'
-          + '<ul class="clist"></ul>'
-          + '<form class="cform" novalidate>'
-          +   '<div class="field"><label>Что вы чувствуете</label>'
-          +     '<div class="emoji" role="group" aria-label="Эмоция">'
-          +       EMOJI.map(function(x){
-                    return '<button type="button" aria-pressed="false" aria-label="' + x + '">' + x + "</button>";
-                  }).join("")
-          +     "</div>"
-          +     '<p class="err-msg" hidden></p>'
-          +   "</div>"
-          +   '<div class="field"><label>Имя</label>'
-          +     '<input type="text" maxlength="40" autocomplete="name" placeholder="Имя или ник"></div>'
-          +   '<div class="field"><label>Что вы думаете</label>'
-          +     '<textarea rows="2" maxlength="' + MAX + '" placeholder="Коротко — не больше ста символов."></textarea>'
-          +     '<p class="counter"><span>0</span> из ' + MAX + "</p></div>"
-          +   '<div class="row"><button class="btn btn-fill" type="submit">Отправить</button>'
-          +     '<button class="btn btn-quiet" type="button" data-close>Отмена</button></div>'
-          + "</form>";
-        p.insertAdjacentElement("afterend", panel);
+        var picked = mine[pid] || "";
+        var pop = document.createElement("span");
+        pop.className = "rpop";
+        pop.innerHTML = EMOJI.map(function(x){
+          return '<button type="button" aria-label="' + x + '"'
+               + (x === picked ? ' aria-pressed="true"' : "") + ">" + x + "</button>";
+        }).join("") + (picked ? '<button type="button" class="rclear">убрать</button>' : "");
+        p.appendChild(pop);
         btn.setAttribute("aria-expanded", "true");
-        open = {p: p, btn: btn, panel: panel};
+        open = {p: p, btn: btn, pop: pop};
 
-        var list = panel.querySelector(".clist");
-        var form = panel.querySelector("form");
-        var input = panel.querySelector("input");
-        var area = panel.querySelector("textarea");
-        var counter = panel.querySelector(".counter span");
-        var emoErr = panel.querySelector(".field .err-msg");
-        var picked = "";
-
-        Store.listComments(chapter).then(function(by){ draw(by[pid] || []); });
-        function draw(items){
-          list.innerHTML = items.map(function(c){
-            return '<li><span class="c-emo" aria-hidden="true">' + c.emoji + "</span>"
-                 + '<span class="c-who">' + esc(c.name) + " · " + when(c.at) + "</span>"
-                 + '<p class="c-text">' + esc(c.text) + "</p></li>";
-          }).join("");
-          mark(p, items);
-        }
-
-        panel.querySelectorAll(".emoji button").forEach(function(b){
-          b.addEventListener("click", function(){
-            picked = b.textContent;
-            panel.querySelectorAll(".emoji button").forEach(function(o){
-              o.setAttribute("aria-pressed", o === b ? "true" : "false");
+        pop.querySelectorAll("button").forEach(function(b){
+          b.addEventListener("click", function(ev){
+            ev.stopPropagation();
+            var next = b.classList.contains("rclear") ? "" : b.textContent;
+            if (next === picked) next = "";
+            Store.react(chapter, pid, picked, next).then(function(data){
+              counts = data;
+              if (next) mine[pid] = next; else delete mine[pid];
+              Store.saveMine(chapter, mine);
+              close();
+              p.classList.add("read");
+              refresh(p);
             });
-            emoErr.hidden = true;
           });
         });
-        area.addEventListener("input", function(){
-          counter.textContent = area.value.trim().length;
-        });
-        panel.querySelector("[data-close]").addEventListener("click", close);
-
-        form.addEventListener("submit", function(ev){
-          ev.preventDefault();
-          var nm = clean(input.value), tx = clean(area.value);
-          if (!picked){
-            emoErr.textContent = "Выберите эмоцию.";
-            emoErr.hidden = false;
-            return;
-          }
-          if (nm.length < 2){ input.setAttribute("aria-invalid", "true"); input.focus(); return; }
-          input.removeAttribute("aria-invalid");
-          if (!tx.length || tx.length > MAX || looksLikeSpam(tx)){
-            area.setAttribute("aria-invalid", "true"); area.focus(); return;
-          }
-          area.removeAttribute("aria-invalid");
-          if (Store.tooFast()){
-            emoErr.textContent = "Слишком часто. Подождите немного.";
-            emoErr.hidden = false;
-            return;
-          }
-          Store.addComment({chapter: chapter, pid: pid, name: nm, emoji: picked, text: tx})
-            .then(function(){
-              form.reset();
-              counter.textContent = "0";
-              picked = "";
-              panel.querySelectorAll(".emoji button").forEach(function(o){ o.setAttribute("aria-pressed","false"); });
-              var ok = document.createElement("p");
-              ok.className = "cthanks";
-              ok.setAttribute("role", "status");
-              ok.textContent = "Спасибо, записано.";
-              form.appendChild(ok);
-              setTimeout(function(){ ok.remove(); }, 4000);
-              return Store.listComments(chapter).then(function(by){ draw(by[pid] || []); });
-            });
-        });
-
-        input.focus({preventScroll: true});
       }
 
+      document.addEventListener("click", close);
       document.addEventListener("keydown", function(e){ if (e.key === "Escape") close(); });
     })();
 

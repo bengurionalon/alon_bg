@@ -235,41 +235,49 @@ details[open] summary{color:var(--accent);margin-bottom:.9rem}
 .rv-text{margin:0;color:var(--ink-2);white-space:pre-wrap}
 .empty{color:var(--ink-3);margin:0}
 
-/* ---------- построчные комментарии ---------- */
+/* ---------- реакции к абзацам ---------- */
 .text p[data-p]{position:relative}
 .pmark{
-  font-family:var(--font-mono);font-size:.66rem;line-height:1;letter-spacing:.04em;
-  display:inline-flex;align-items:center;justify-content:center;gap:.22em;
-  min-width:1.55rem;height:1.55rem;padding:0 .38rem;
+  font-family:var(--font-mono);font-size:.78rem;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:1.6rem;height:1.6rem;padding:0;
   color:var(--ink-3);background:var(--bg);border:1px solid var(--rule);
   opacity:0;transition:opacity .18s,color .18s,border-color .18s;text-indent:0;vertical-align:middle}
 .pmark:hover,.pmark:focus-visible,.pmark[aria-expanded="true"]{opacity:1;color:var(--accent);border-color:var(--accent)}
-.pmark.has{opacity:1;color:var(--accent-2);border-color:var(--rule)}
-.text p:hover > .pmark{opacity:.85}
-@media (hover:none){.pmark{opacity:.6}}
-@media (min-width:60rem){
-  .pmark{position:absolute;left:100%;top:.2em;margin-left:.85rem}
-}
+.pmark.picked{opacity:1;border-color:var(--accent-2);font-size:.95rem}
+.text p:hover > .pmark{opacity:.8}
+@media (hover:none){.pmark{opacity:.45}}
+@media (min-width:60rem){.pmark{position:absolute;left:100%;top:.15em;margin-left:.85rem}}
+@media (max-width:59.99rem){.pmark{margin-left:.45em;position:static}}
+
+/* ряд эмодзи по нажатию */
+.rpop{
+  position:absolute;z-index:25;left:100%;top:-.3em;margin-left:.85rem;
+  display:flex;flex-wrap:wrap;gap:.2rem;align-items:center;
+  background:var(--bg);border:1px solid var(--rule);padding:.3rem;
+  box-shadow:0 14px 34px -18px var(--glow);text-indent:0;max-width:14rem}
 @media (max-width:59.99rem){
-  .pmark{margin-left:.45em;position:static}
+  .rpop{position:static;display:inline-flex;margin:.5rem 0 0;max-width:100%;vertical-align:middle}
 }
-.cpanel{border-left:2px solid var(--accent-2);background:var(--surface);
-  margin:.9rem 0 1.1rem;padding:1rem 1.1rem;font-size:1rem;line-height:1.6;text-indent:0}
-.cpanel .kicker{margin-bottom:.8rem}
-.clist{list-style:none;margin:0 0 1.1rem;padding:0;display:flex;flex-direction:column;gap:.85rem}
-.clist:empty{display:none}
-.clist li{display:grid;grid-template-columns:1.9rem minmax(0,1fr);gap:.1rem .7rem;align-items:start}
-.c-emo{font-size:1.25rem;line-height:1.2;grid-row:span 2}
-.c-who{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
-.c-text{margin:.15rem 0 0;color:var(--ink-2)}
-.emoji{display:flex;flex-wrap:wrap;gap:.35rem;margin:0;padding:0;border:0}
-.emoji button{font-size:1.2rem;line-height:1;padding:.35rem .4rem;border:1px solid var(--rule);background:var(--bg);
+.rpop button{font-size:1.15rem;line-height:1;padding:.3rem .34rem;border:1px solid transparent;background:none;
   transition:border-color .15s,transform .15s}
-.emoji button:hover{border-color:var(--accent-2)}
-.emoji button[aria-pressed="true"]{border-color:var(--accent);transform:translateY(-2px)}
-.cform .field{margin-bottom:.85rem}
-.cform .row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
-.cthanks{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.08em;color:var(--accent);margin:.2rem 0 0}
+.rpop button:hover{border-color:var(--accent-2);transform:translateY(-2px)}
+.rpop button[aria-pressed="true"]{border-color:var(--accent)}
+.rpop .rclear{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);padding:.4rem .5rem;transform:none}
+.rpop .rclear:hover{color:var(--accent);border-color:transparent;transform:none}
+
+/* счётчики: видны только после того, как абзац прочитан */
+.rsum{display:inline-flex;flex-wrap:wrap;gap:.25rem;margin-left:.5em;vertical-align:middle;text-indent:0;
+  opacity:0;transition:opacity .5s;pointer-events:none}
+.text p.read > .rsum{opacity:1}
+@media (min-width:60rem){
+  .rsum{position:absolute;left:100%;top:.15em;margin-left:3.1rem;max-width:7rem}
+  .text p:hover > .rsum{opacity:1}
+}
+.rchip{font-family:var(--font-mono);font-size:.66rem;line-height:1;color:var(--ink-3);
+  display:inline-flex;align-items:center;gap:.18em;padding:.22rem .34rem;border:1px solid var(--rule)}
+.rchip.mine{color:var(--accent);border-color:var(--accent-2)}
 
 /* ---------- misc ---------- */
 .resume{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;margin-top:1.4rem;padding:.85rem 1rem;
