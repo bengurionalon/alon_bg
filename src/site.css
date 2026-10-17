@@ -329,37 +329,75 @@ body.gate-ready .gate-book{
 }
 .gate-book.held{animation:none!important;opacity:1}
 
-/* грани тома: лицо на месте элемента, остальные уходят вглубь */
+/* Том собран как настоящий переплёт: крышка выступает за блок страниц,
+   у корешка желобок, по лаку идёт резкий блик. */
 .gate-face{position:absolute}
-.gate-cover{inset:0;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.4)}
+
+/* переплётная крышка */
+.gate-cover{
+  inset:0;overflow:hidden;border-radius:2px 6px 6px 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.55),
+    inset -1px 0 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(0,0,0,.35),
+    0 1px 0 rgba(0,0,0,.45)}
 .gate-cover img{width:100%;height:100%;object-fit:cover;display:block}
+/* желобок у корешка — по нему глаз и узнаёт переплёт */
+.gate-hinge{
+  position:absolute;top:0;bottom:0;left:5.5%;width:3.2%;z-index:3;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.14) 45%,rgba(255,255,255,.3) 75%,transparent)}
+/* лак: широкое отражение плюс узкая резкая полоса, обе ведутся курсором */
+.gate-gloss{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:
+    linear-gradient(101deg,transparent calc(var(--gx,50%) - 26%),rgba(255,255,255,.26) var(--gx,50%),transparent calc(var(--gx,50%) + 10%)),
+    linear-gradient(101deg,transparent calc(var(--gx,50%) - 9%),rgba(255,255,255,.16) var(--gx,50%),transparent calc(var(--gx,50%) + 6%)),
+    linear-gradient(180deg,rgba(255,255,255,.22),transparent 24%)}
+.gate-gloss::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(101deg,transparent calc(var(--gx,50%) - 4%),rgba(255,255,255,.6) var(--gx,50%),transparent calc(var(--gx,50%) + 4%));
+  mix-blend-mode:screen;opacity:.22}
+
+/* корешок: скруглён светом посередине, с бинтами сверху и снизу */
 .gate-spine{
-  top:0;left:0;height:100%;width:var(--thick,30px);
+  top:0;left:0;height:100%;width:var(--thick,34px);
   transform-origin:left center;transform:rotateY(90deg);
-  background:linear-gradient(90deg,#160C2A,#38235E 45%,#241544);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.14) 0 2.5%,transparent 2.5% 5%,rgba(0,0,0,.3) 5% 6%,transparent 6% 94%,rgba(0,0,0,.3) 94% 95%,transparent 95% 97.5%,rgba(255,255,255,.1) 97.5%),
+    linear-gradient(90deg,#120920 0 6%,#2C1A4C 22%,#432B6E 50%,#2A1848 78%,#160C28);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:inset -6px 0 14px -6px rgba(0,0,0,.7)}
+  box-shadow:inset -8px 0 16px -8px rgba(0,0,0,.8),inset 8px 0 16px -8px rgba(0,0,0,.8)}
 .gate-spine span{
   writing-mode:vertical-rl;font-family:var(--font-display);font-weight:500;
-  font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:#CDB6EE;
-  white-space:nowrap;opacity:.9}
+  font-size:.48rem;letter-spacing:.2em;text-transform:uppercase;color:#D3BEF4;
+  white-space:nowrap;text-shadow:0 1px 0 rgba(0,0,0,.6)}
+
+/* блок страниц уже крышки — переплёт нависает над ним со всех сторон */
 .gate-edge{
-  top:0;right:0;height:100%;width:var(--thick,30px);
+  top:2.4%;bottom:2.4%;right:1.8%;width:calc(var(--thick,34px) - 9px);
   transform-origin:right center;transform:rotateY(-90deg);
-  background:repeating-linear-gradient(90deg,#F7F2E9 0 1px,#D9CEC0 1px 2px,#EEE7DB 2px 4px)}
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.3),transparent 7%,transparent 93%,rgba(0,0,0,.3)),
+    linear-gradient(90deg,rgba(0,0,0,.34),transparent 26%,rgba(255,255,255,.3) 62%,rgba(0,0,0,.2)),
+    repeating-linear-gradient(90deg,#FBF7F0 0 1px,#CFC3B2 1px 2px,#F2ECE1 2px 3px,#DED3C3 3px 4px,#F7F2E7 4px 6px)}
 .gate-topface{
-  left:0;top:0;width:100%;height:var(--thick,30px);
+  left:1.8%;right:1.8%;top:2.4%;height:calc(var(--thick,34px) - 9px);
   transform-origin:center top;transform:rotateX(90deg);
-  background:repeating-linear-gradient(90deg,#F7F2E9 0 1px,#DAD0C2 1px 2px,#EFE8DC 2px 4px)}
-.gate-gloss{
-  position:absolute;inset:0;pointer-events:none;z-index:2;mix-blend-mode:soft-light;
-  background:linear-gradient(104deg,transparent 34%,rgba(255,255,255,.4) var(--gx,50%),transparent 66%)}
+  background:
+    linear-gradient(90deg,rgba(0,0,0,.4),transparent 9%,transparent 92%,rgba(0,0,0,.22)),
+    repeating-linear-gradient(90deg,#FBF7F0 0 1px,#D2C6B6 1px 2px,#F1EBE0 2px 3px,#E0D5C6 3px 4px,#F7F2E7 4px 6px)}
 .gate-shade{display:none}
+
+/* свечение позади тома и тень под ним */
 .gate-stage{position:relative}
 .gate-stage::before{
   content:"";position:absolute;inset:-18% -30%;z-index:-1;pointer-events:none;
   background:radial-gradient(50% 44% at 50% 50%,var(--accent-2),transparent 70%);
   filter:blur(50px);opacity:.3}
+.gate-stage::after{
+  content:"";position:absolute;left:12%;right:4%;bottom:-6%;height:5%;z-index:-1;pointer-events:none;
+  background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.55),transparent 72%);
+  filter:blur(13px);opacity:.75}
 
 .gate-words{text-align:center;opacity:0;max-width:30rem}
 body.gate-ready .gate-words{animation:wordsIn 1.1s ease 1.7s both}

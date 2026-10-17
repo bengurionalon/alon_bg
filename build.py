@@ -185,6 +185,7 @@ def page_home(b):
       <span class="gate-face gate-topface" aria-hidden="true"></span>
       <span class="gate-face gate-cover">
         <img src="{COVER}" alt="" width="1000" height="1600">
+        <span class="gate-hinge" aria-hidden="true"></span>
         <span class="gate-gloss" aria-hidden="true"></span>
       </span>
       <span class="gate-shade" aria-hidden="true"></span>
