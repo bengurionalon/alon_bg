@@ -177,24 +177,10 @@ def page_home(b):
     author = "\n          ".join(f"<p>{p}</p>" for p in AUTHOR_TEXT)
     out = head(f"{b['title']} — {AUTHOR}", LEDE, "", SITE + "/", schema)
     out += '<canvas id="field" aria-hidden="true"></canvas>\n'
-    out += f"""<div id="gate" role="dialog" aria-label="Вход на сайт">
-  <div class="gate-stage">
-    <button class="gate-book" type="button" style="--thick:34px" aria-label="Открыть книгу и войти на сайт">
-      <span class="gate-face gate-spine" aria-hidden="true"><span>{AUTHOR} · {e(b['title'])}</span></span>
-      <span class="gate-face gate-edge" aria-hidden="true"></span>
-      <span class="gate-face gate-topface" aria-hidden="true"></span>
-      <span class="gate-face gate-cover">
-        <img src="{COVER}" alt="" width="1000" height="1600">
-        <span class="gate-hinge" aria-hidden="true"></span>
-        <span class="gate-gloss" aria-hidden="true"></span>
-      </span>
-      <span class="gate-shade" aria-hidden="true"></span>
-    </button>
-  </div>
+    out += """<div id="gate">
   <div class="gate-words">
-    <p>Нажмите на книгу, чтобы войти</p>
+    <p>Нажмите, чтобы войти</p>
   </div>
-  <button class="gate-skip" type="button" id="gateSkip">Пропустить</button>
 </div>
 """
     out += header("", "")

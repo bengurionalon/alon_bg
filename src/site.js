@@ -159,15 +159,20 @@
     return /https?:\/\/|www\.|<a\s|\[url/i.test(s);
   }
 
-  /* ======== поле нитей ======== */
-  (function(){
+  /* ======== фон: поле растений, которое ложится в нити ========
+     На главной сначала идёт наезд на поле — то самое, посреди которого
+     Виктор приходит в себя в конце романа. По нажатию стебли
+     распрямляются, растягиваются поперёк экрана и становятся нитями,
+     которые дальше живут фоном всего сайта. */
+  var FIELD = (function(){
     var cv = $("field");
-    if (!cv || !cv.getContext) return;
+    if (!cv || !cv.getContext) return {grove:function(){}, settle:function(){}};
     var ctx = cv.getContext("2d");
     var W = 0, H = 0, t = 0, raf = null, asleep = false;
     var col = "rgba(94,48,160,.5)";
-    var rows = [];
+    var rows = [], plants = [];
     var tx = -9999, ty = -9999, lx = -9999, ly = -9999, hold = 0, holdTo = 0;
+    var mode = "strings", morph = 0, morphTo = 0;
     var mqReduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     var mqDark = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -185,8 +190,11 @@
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (changed || !rows.length) layout();
+      if (changed || !plants.length) sow();
       return true;
     }
+
+    /* ---- нити ---- */
     function layout(){
       var gap = Math.max(12, H / 38);
       var n = Math.ceil(H / gap) + 3;
@@ -201,47 +209,200 @@
         });
       }
     }
-    function step(){
+    function threadY(r, x, live){
+      var u = x / W;
+      var pin = Math.sin(Math.PI * u);
+      var rowEnv = 0.45 + 0.55 * Math.sin(Math.PI * Math.min(1, Math.max(0, r.base / Math.max(1, H))));
+      var drift = 32 * Math.sin(x * 0.0020 + t * 0.095 + r.ph * 0.07)
+                + 14 * Math.sin(x * 0.0046 - t * 0.068 + r.ph * 0.38)
+                +  5 * Math.sin(x * 0.0091 + t * 0.15 + r.ph);
+      var y = r.base + pin * drift * rowEnv;
+      if (live){
+        var ax = x - lx, ay = y - ly;
+        var d = Math.sqrt(ax * ax + ay * ay);
+        var R = Math.min(340, Math.max(180, W * 0.24));
+        if (d < R){
+          var f = 1 - d / R;
+          y += pin * (ay / Math.max(d, 28)) * f * f * 54 * r.k;
+        }
+      }
+      return y;
+    }
+    function drawThreads(alpha){
+      var dx = Math.max(4, W / 200);
+      for (var i = 0; i < rows.length; i++){
+        var r = rows[i];
+        ctx.beginPath();
+        for (var x = 0; x <= W; x += dx){
+          var y = threadY(r, x, r.k > 0.012);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.globalAlpha = alpha * (0.18 + 0.50 * Math.abs(Math.sin(i * 0.68 + 0.4)) + 0.16 * r.k);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    /* ---- поле ---- */
+    function rnd(seed){
+      var s = seed >>> 0;
+      return function(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    }
+    function makePlant(i, near){
+      var R = rnd(i * 2654435761 + 12345);
+      var corridor = 0.17;                 /* тропа посередине остаётся пустой */
+      var u = (R() * 2 - 1);
+      if (Math.abs(u) < corridor) u = (u < 0 ? -1 : 1) * (corridor + R() * 0.12);
+      var leaves = [];
+      var n = 4 + Math.floor(R() * 3);
+      for (var k = 0; k < n; k++){
+        leaves.push({
+          s: 0.12 + (k / n) * 0.74 + R() * 0.05,
+          side: k % 2 ? 1 : -1,
+          len: 0.12 + R() * 0.09,
+          droop: 0.46 + R() * 0.42
+        });
+      }
+      return {
+        u: u * (1 + R() * 0.9),
+        d: near ? (0.14 + Math.pow(R(), 0.55) * 0.95) : (1.0 + R() * 0.1),
+        h: 0.72 + R() * 0.5,
+        lean: (R() * 2 - 1) * 0.5,
+        podW: 0.072 + R() * 0.032,
+        veins: 2 + Math.floor(R() * 3),
+        sway: R() * 6.28,
+        leaves: leaves
+      };
+    }
+    function sow(){
+      var count = W < 620 ? 55 : (W < 1100 ? 80 : 110);
+      plants = [];
+      for (var i = 0; i < count; i++) plants.push(makePlant(i, true));
+    }
+
+    function drawPlant(pl, m, idx){
+      var hz = H * 0.40;
+      var p = 0.30 / Math.max(0.06, pl.d);
+      if (p < 0.045) return;
+      var x = W * 0.5 + pl.u * p * W * 0.62;
+      var base = hz + p * H * 0.50;
+      var hgt = p * H * 0.62 * pl.h;
+      if (x < -W * 0.6 || x > W * 1.6 || base - hgt > H) return;
+
+      var fade = Math.min(1, (p - 0.04) / 0.05) * Math.min(1, Math.max(0, (1.7 - p) / 0.55));
+      if (fade <= 0.01) return;
+
+      /* ветер идёт за курсором */
+      var gust = 0;
+      if (hold > 0.02){
+        var dd = Math.abs(x - lx) / Math.max(1, W * 0.28);
+        if (dd < 1.6) gust = (x - lx >= 0 ? 1 : -1) * (1 - Math.min(1, dd)) * 0.5 * hold;
+      }
+      var lean = pl.lean * 0.06 + Math.sin(t * 0.55 + pl.sway) * 0.025 + gust * 0.22;
+
+      ctx.globalAlpha = fade * 0.46 * (1 - m * 0.15);
+      ctx.lineWidth = Math.max(0.45, Math.min(1.05, hgt * 0.0075));
+
+      var topX0 = x + lean * hgt, topY0 = base - hgt;
+      var midX0 = x + lean * hgt * 0.3, midY0 = base - hgt * 0.55;
+
+      if (m <= 0.001){
+        ctx.beginPath();
+        ctx.moveTo(x, base);
+        ctx.quadraticCurveTo(midX0, midY0, topX0, topY0);
+        ctx.stroke();
+      } else {
+        /* стебель распрямляется и уходит на место своей нити */
+        var e = m * m * (3 - 2 * m);
+        var row = rows[(idx * 7 + 3) % rows.length];
+        var steps = 18;
+        ctx.beginPath();
+        for (var i = 0; i <= steps; i++){
+          var s = i / steps;
+          var a = 1 - s, bq = a * a, cq = 2 * a * s, dq = s * s;
+          var px = bq * x + cq * midX0 + dq * topX0;
+          var py = bq * base + cq * midY0 + dq * topY0;
+          var qx = s * W;
+          var qy = threadY(row, qx, false);
+          var fx = px + (qx - px) * e, fy = py + (qy - py) * e;
+          if (i === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+        }
+        ctx.stroke();
+      }
+
+      var leafA = fade * 0.4 * (1 - m);
+      if (leafA > 0.02){
+        ctx.globalAlpha = leafA;
+        for (var j = 0; j < pl.leaves.length; j++){
+          var lf = pl.leaves[j];
+          var ss = lf.s;
+          var lx0 = x + lean * hgt * ss * ss, ly0 = base - hgt * ss;
+          var len = hgt * lf.len;
+          var dir = lf.side;
+          ctx.beginPath();
+          ctx.moveTo(lx0, ly0);
+          ctx.quadraticCurveTo(lx0 + dir * len * 0.5, ly0 - len * 0.20,
+                               lx0 + dir * len * 0.78, ly0 + len * lf.droop);
+          ctx.quadraticCurveTo(lx0 + dir * len * 0.34, ly0 + len * 0.26, lx0, ly0 + len * 0.1);
+          ctx.stroke();
+        }
+        /* головка с прожилками */
+        var pw = hgt * pl.podW, ph = pw * 1.8;
+        var cy = topY0 - ph * 0.5;
+        ctx.beginPath();
+        ctx.ellipse(topX0, cy, pw * 0.5, ph * 0.5, lean * 0.5, 0, 6.2832);
+        ctx.stroke();
+        for (var v = 1; v <= pl.veins; v++){
+          var kk = v / (pl.veins + 1);
+          var off = (kk - 0.5) * pw * 0.9;
+          ctx.beginPath();
+          ctx.moveTo(topX0, cy - ph * 0.5);
+          ctx.quadraticCurveTo(topX0 + off * 1.5, cy, topX0, cy + ph * 0.5);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function drawGrove(){
+      plants.sort(function(a, b){ return b.d - a.d; });
+      for (var i = 0; i < plants.length; i++) drawPlant(plants[i], morph, i);
+    }
+
+    function step(dt){
       t += 0.016;
       hold += (holdTo - hold) * 0.05;
       if (lx < -1000){ lx = tx; ly = ty; }
       lx += (tx - lx) * 0.11; ly += (ty - ly) * 0.11;
       for (var i = 0; i < rows.length; i++) rows[i].k += (hold - rows[i].k) * rows[i].rate;
+
+      if (mode !== "strings"){
+        if (morphTo > 0){
+          morph += (morphTo - morph) * 0.045;
+          if (morph > 0.985){ morph = 1; mode = "strings"; }
+        } else if (!mqReduce.matches){
+          /* наезд: поле едет на зрителя, ушедшее возвращается к горизонту */
+          for (var j = 0; j < plants.length; j++){
+            var pl = plants[j];
+            pl.d -= 0.0016;
+            if (pl.d < 0.07){ var fresh = makePlant((Math.random() * 1e9) | 0, false); fresh.d = 1.05 + Math.random() * 0.1; plants[j] = fresh; }
+          }
+        }
+      }
     }
+
     function draw(){
       ctx.clearRect(0, 0, W, H);
-      ctx.lineWidth = 1;
       ctx.lineJoin = "round";
-      var dx = Math.max(4, W / 200);
-      var R = Math.min(340, Math.max(180, W * 0.24));
-      for (var i = 0; i < rows.length; i++){
-        var r = rows[i];
-        var rowEnv = 0.45 + 0.55 * Math.sin(Math.PI * Math.min(1, Math.max(0, r.base / Math.max(1, H))));
-        var live = r.k > 0.012;
-        ctx.beginPath();
-        for (var x = 0; x <= W; x += dx){
-          var u = x / W;
-          var pin = Math.sin(Math.PI * u);
-          var drift = 32 * Math.sin(x * 0.0020 + t * 0.095 + r.ph * 0.07)
-                    + 14 * Math.sin(x * 0.0046 - t * 0.068 + r.ph * 0.38)
-                    +  5 * Math.sin(x * 0.0091 + t * 0.15 + r.ph);
-          var y = r.base + pin * drift * rowEnv;
-          if (live){
-            var ax = x - lx, ay = y - ly;
-            var d = Math.sqrt(ax * ax + ay * ay);
-            if (d < R){
-              var f = 1 - d / R;
-              y += pin * (ay / Math.max(d, 28)) * f * f * 54 * r.k;
-            }
-          }
-          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.globalAlpha = 0.18 + 0.50 * Math.abs(Math.sin(i * 0.68 + 0.4)) + 0.16 * r.k;
-        ctx.strokeStyle = col;
-        ctx.stroke();
+      ctx.strokeStyle = col;
+      if (mode === "strings"){
+        drawThreads(1);
+      } else {
+        drawGrove();
+        if (morph > 0.02) drawThreads(morph * morph);
       }
       ctx.globalAlpha = 1;
     }
+
     function loop(){ step(); draw(); raf = requestAnimationFrame(loop); }
     function start(){ if (!raf && !asleep && !mqReduce.matches) raf = requestAnimationFrame(loop); }
     function stop(){ if (raf){ cancelAnimationFrame(raf); raf = null; } }
@@ -268,7 +429,12 @@
     });
 
     readColor();
-    if (size()) { draw(); start(); }
+    if (size()){ draw(); start(); }
+
+    return {
+      grove: function(){ mode = "grove"; morph = 0; morphTo = 0; if (size()) draw(); start(); },
+      settle: function(){ if (mode === "grove"){ morphTo = 1; if (mqReduce.matches){ morph = 1; mode = "strings"; draw(); } } }
+    };
   })();
 
   /* ======== обложка ======== */
@@ -322,24 +488,20 @@
     link.hidden = false;
   })();
 
-  /* ======== заставка: книга перед входом ======== */
+  /* ======== заставка: наезд на поле ======== */
   (function(){
     var gate = $("gate");
     if (!gate) return;
     var KEY = "alon.gate";
-    var book = gate.querySelector(".gate-book");
-    var gloss = gate.querySelector(".gate-gloss");
-    var shade = gate.querySelector(".gate-shade");
-    var skip = $("gateSkip");
     var body = document.body;
     var mqReduce = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    /* второй раз не задерживаем, и никогда — если пришли по ссылке вглубь */
     var seen = false;
     try { seen = localStorage.getItem(KEY) === "1"; } catch(e){}
     if (seen || location.hash){ gate.remove(); return; }
 
     body.classList.add("gate-on");
+    FIELD.grove();
     requestAnimationFrame(function(){ body.classList.add("gate-ready"); });
 
     var opening = false;
@@ -347,46 +509,23 @@
       if (opening) return;
       opening = true;
       try { localStorage.setItem(KEY, "1"); } catch(e){}
+      FIELD.settle();                              /* растения ложатся в нити */
       body.classList.add("gate-opening");
       setTimeout(function(){
         body.classList.remove("gate-on", "gate-ready", "gate-opening");
         body.classList.add("gate-off");
-        setTimeout(function(){ if (gate.parentNode) gate.remove(); }, 1000);
-      }, mqReduce.matches ? 0 : 620);
+        setTimeout(function(){ if (gate.parentNode) gate.remove(); }, 1200);
+      }, mqReduce.matches ? 0 : 1500);
     }
 
-    book.addEventListener("click", enter);
-    if (skip) skip.addEventListener("click", enter);
+    gate.addEventListener("click", enter);
     document.addEventListener("keydown", function(e){
-      if (!opening && body.classList.contains("gate-on") && (e.key === "Enter" || e.key === " " || e.key === "Escape")){
+      if (!opening && body.classList.contains("gate-on") &&
+          (e.key === "Enter" || e.key === " " || e.key === "Escape")){
         e.preventDefault();
         enter();
       }
     });
-
-    /* книга ведётся за курсором */
-    var pending = null;
-    gate.addEventListener("pointermove", function(e){
-      if (mqReduce.matches || opening || pending) return;
-      pending = requestAnimationFrame(function(){
-        pending = null;
-        var r = book.getBoundingClientRect();
-        if (!r.width) return;
-        var u = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (window.innerWidth / 2)));
-        var v = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (window.innerHeight / 2)));
-        book.classList.add("held");
-        book.style.transform =
-          "rotateX(" + (5 - v * 8).toFixed(2) + "deg) rotateY(" + (-24 + u * 13).toFixed(2) + "deg)";
-        if (gloss) gloss.style.setProperty("--gx", (50 + u * 38).toFixed(1) + "%");
-        if (shade) shade.style.transform = "translateX(" + (-u * 16).toFixed(1) + "px) scaleX(" + (1 - Math.abs(u) * 0.12).toFixed(3) + ")";
-      });
-    }, {passive:true});
-    gate.addEventListener("pointerleave", function(){
-      if (opening) return;
-      book.classList.remove("held");
-      book.style.transform = "";
-      if (shade) shade.style.transform = "";
-    }, {passive:true});
   })();
 
   /* ======== книга отзывов ======== */
