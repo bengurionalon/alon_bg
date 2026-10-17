@@ -19,7 +19,7 @@
   /* ======== хранилище ========
      Если задан адрес API (подставляется сборщиком из build.py), записи идут
      на сервер и видны всем. Если нет — живут в браузере читателя, как демо. */
-  var API = "";
+  var API = "https://alon-api.bengurionalon.workers.dev";
   if (API.indexOf("__ALON") === 0) API = "";
   var DEMO = !API;
 

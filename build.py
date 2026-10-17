@@ -22,7 +22,7 @@ SITE = "https://bengurionalon.github.io/alon_bg"   # адрес сайта; по
 
 # Адрес Worker'а, который хранит отзывы и реакции.
 # Пустая строка = демонстрация: записи живут только в браузере читателя.
-API = ""
+API = "https://alon-api.bengurionalon.workers.dev"
 BOOK = os.path.join(ROOT, "books", "v-soznanie.json")
 
 AUTHOR = "А.Л.О.Н."
