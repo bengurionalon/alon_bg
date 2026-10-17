@@ -181,10 +181,9 @@
       if (v) col = v;
     }
     function size(){
-      var r = cv.getBoundingClientRect();
-      if (!r.width || !r.height) return false;
+      var nw = cv.clientWidth, nh = cv.clientHeight;
+      if (!nw || !nh) return false;
       var dpr = Math.min(2, window.devicePixelRatio || 1);
-      var nw = Math.round(r.width), nh = Math.round(r.height);
       var changed = (nw !== W || nh !== H);
       W = nw; H = nh;
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
@@ -403,7 +402,12 @@
       ctx.globalAlpha = 1;
     }
 
-    function loop(){ step(); draw(); raf = requestAnimationFrame(loop); }
+    function fits(){ return cv.clientWidth === W && cv.clientHeight === H; }
+    function loop(){
+      if (!fits()) size();
+      step(); draw();
+      raf = requestAnimationFrame(loop);
+    }
     function start(){ if (!raf && !asleep && !mqReduce.matches) raf = requestAnimationFrame(loop); }
     function stop(){ if (raf){ cancelAnimationFrame(raf); raf = null; } }
 
@@ -414,11 +418,13 @@
     document.addEventListener("pointerleave", function(){ holdTo = 0; }, {passive:true});
     window.addEventListener("blur", function(){ holdTo = 0; });
 
-    var rt = null;
-    window.addEventListener("resize", function(){
-      clearTimeout(rt);
-      rt = setTimeout(function(){ if (size()) draw(); }, 150);
-    }, {passive:true});
+    function remeasure(){ if (size()) draw(); }
+    window.addEventListener("resize", remeasure, {passive:true});
+    window.addEventListener("orientationchange", remeasure, {passive:true});
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", remeasure, {passive:true});
+    if (window.ResizeObserver) new ResizeObserver(remeasure).observe(cv);
+    window.addEventListener("load", remeasure);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasure);
     document.addEventListener("visibilitychange", function(){
       asleep = document.hidden;
       if (asleep) stop(); else start();
