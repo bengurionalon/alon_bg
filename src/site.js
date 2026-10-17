@@ -322,6 +322,73 @@
     link.hidden = false;
   })();
 
+  /* ======== заставка: книга перед входом ======== */
+  (function(){
+    var gate = $("gate");
+    if (!gate) return;
+    var KEY = "alon.gate";
+    var book = gate.querySelector(".gate-book");
+    var gloss = gate.querySelector(".gate-gloss");
+    var shade = gate.querySelector(".gate-shade");
+    var skip = $("gateSkip");
+    var body = document.body;
+    var mqReduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    /* второй раз не задерживаем, и никогда — если пришли по ссылке вглубь */
+    var seen = false;
+    try { seen = localStorage.getItem(KEY) === "1"; } catch(e){}
+    if (seen || location.hash){ gate.remove(); return; }
+
+    body.classList.add("gate-on");
+    requestAnimationFrame(function(){ body.classList.add("gate-ready"); });
+
+    var opening = false;
+    function enter(){
+      if (opening) return;
+      opening = true;
+      try { localStorage.setItem(KEY, "1"); } catch(e){}
+      body.classList.add("gate-opening");
+      setTimeout(function(){
+        body.classList.remove("gate-on", "gate-ready", "gate-opening");
+        body.classList.add("gate-off");
+        setTimeout(function(){ if (gate.parentNode) gate.remove(); }, 1000);
+      }, mqReduce.matches ? 0 : 620);
+    }
+
+    book.addEventListener("click", enter);
+    if (skip) skip.addEventListener("click", enter);
+    document.addEventListener("keydown", function(e){
+      if (!opening && body.classList.contains("gate-on") && (e.key === "Enter" || e.key === " " || e.key === "Escape")){
+        e.preventDefault();
+        enter();
+      }
+    });
+
+    /* книга ведётся за курсором */
+    var pending = null;
+    gate.addEventListener("pointermove", function(e){
+      if (mqReduce.matches || opening || pending) return;
+      pending = requestAnimationFrame(function(){
+        pending = null;
+        var r = book.getBoundingClientRect();
+        if (!r.width) return;
+        var u = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (window.innerWidth / 2)));
+        var v = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (window.innerHeight / 2)));
+        book.classList.add("held");
+        book.style.transform =
+          "rotateX(" + (5 - v * 8).toFixed(2) + "deg) rotateY(" + (-24 + u * 13).toFixed(2) + "deg)";
+        if (gloss) gloss.style.setProperty("--gx", (50 + u * 38).toFixed(1) + "%");
+        if (shade) shade.style.transform = "translateX(" + (-u * 16).toFixed(1) + "px) scaleX(" + (1 - Math.abs(u) * 0.12).toFixed(3) + ")";
+      });
+    }, {passive:true});
+    gate.addEventListener("pointerleave", function(){
+      if (opening) return;
+      book.classList.remove("held");
+      book.style.transform = "";
+      if (shade) shade.style.transform = "";
+    }, {passive:true});
+  })();
+
   /* ======== книга отзывов ======== */
   (function(){
     var form = $("reviewForm");
@@ -405,7 +472,10 @@
       name.focus();
     });
 
-    Store.listReviews().then(render);
+    Store.listReviews().then(render).catch(function(){
+      empty.hidden = false;
+      empty.textContent = "Не удалось загрузить отзывы. Обновите страницу чуть позже.";
+    });
   })();
 
   /* ======== читалка ======== */
@@ -474,6 +544,9 @@
 
       Store.listReactions(chapter).then(function(data){
         counts = data;
+      }).catch(function(){
+        counts = {};          /* хранилище недоступно — текст важнее счётчиков */
+      }).then(function(){
         for (var i = 0; i < paras.length; i++) refresh(paras[i]);
         watch();
       });
