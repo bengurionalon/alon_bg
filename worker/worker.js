@@ -12,6 +12,7 @@
  */
 
 const ALLOWED = [
+  "https://alon-bg.pages.dev",
   "https://bengurionalon.github.io",
   "http://localhost:8000",
   "http://localhost:8791",

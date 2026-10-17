@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bengurionalon.github.io/alon_bg/sitemap.xml
+Sitemap: https://alon-bg.pages.dev/sitemap.xml

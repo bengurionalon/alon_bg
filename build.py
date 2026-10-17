@@ -18,7 +18,7 @@ import shutil
 from datetime import date
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SITE = "https://bengurionalon.github.io/alon_bg"   # адрес сайта; поменять при переезде на свой домен
+SITE = "https://alon-bg.pages.dev"   # адрес сайта; поменять при переезде на свой домен
 
 # Адрес Worker'а, который хранит отзывы и реакции.
 # Пустая строка = демонстрация: записи живут только в браузере читателя.
