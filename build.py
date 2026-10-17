@@ -46,6 +46,7 @@ LEDE = ("Консул Виктор Малышев летит с рутинной
         "которой не может быть.")
 
 PAGES = []          # (путь без ведущего слэша, приоритет) — для sitemap.xml
+STAMP = {}          # отпечатки стилей и скрипта, чтобы браузер не держал старые
 
 
 def e(s):
@@ -104,7 +105,7 @@ def head(title, desc, rel, url, extra="", theme_light="#F3EFF8"):
 <link rel="icon" href="{rel}img/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{rel}img/apple-touch-icon.png">
 <link rel="stylesheet" href="{rel}assets/fonts.css">
-<link rel="stylesheet" href="{rel}assets/site.css">
+<link rel="stylesheet" href="{rel}assets/site.css?v={STAMP.get('css','')}">
 {extra}</head>
 <body>
 <a class="skip" href="#main">К содержимому</a>
@@ -139,7 +140,7 @@ def footer(rel):
     </span>
   </div>
 </footer>
-<script src="{rel}assets/site.js" defer></script>
+<script src="{rel}assets/site.js?v={STAMP.get('js','')}" defer></script>
 </body>
 </html>
 """
@@ -488,12 +489,19 @@ def page_404():
 
 def page_assets():
     os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
-    shutil.copy(os.path.join(ROOT, "src", "site.css"), os.path.join(ROOT, "assets", "site.css"))
+    with open(os.path.join(ROOT, "src", "site.css"), encoding="utf-8") as f:
+        css = f.read()
+    with open(os.path.join(ROOT, "assets", "site.css"), "w", encoding="utf-8") as f:
+        f.write(css)
     with open(os.path.join(ROOT, "src", "site.js"), encoding="utf-8") as f:
         js = f.read()
     js = js.replace("__ALON_API__", API.rstrip("/"))
     with open(os.path.join(ROOT, "assets", "site.js"), "w", encoding="utf-8") as f:
         f.write(js)
+    # отпечаток содержимого в адресе: правка доезжает до читателя сразу,
+    # а не через десять минут, пока отстоится кэш GitHub Pages
+    STAMP["css"] = hashlib.sha1(css.encode("utf-8")).hexdigest()[:8]
+    STAMP["js"] = hashlib.sha1(js.encode("utf-8")).hexdigest()[:8]
 
 
 def page_meta():
