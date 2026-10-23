@@ -3,7 +3,7 @@
 (function(){
   "use strict";
 
-  var KEY_POS = "alon.pos.v-soznanie";
+  var KEY_POS = "alon.pos.";      /* к приставке добавляется имя книги */
   var KEY_SIZE = "alon.size";
   var SIZES = {1:"1.0625rem", 2:"1.1875rem", 3:"1.35rem"};
   var $ = function(id){ return document.getElementById(id); };
@@ -12,8 +12,8 @@
     try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }
     catch(e){ return null; }
   }
-  function readPos(){
-    try { return JSON.parse(store(KEY_POS) || "null"); } catch(e){ return null; }
+  function readPos(book){
+    try { return JSON.parse(store(KEY_POS + book) || "null"); } catch(e){ return null; }
   }
 
   /* ======== хранилище ========
@@ -483,7 +483,7 @@
   (function(){
     var link = $("resumeLink");
     if (!link) return;
-    var pos = readPos();
+    var pos = readPos(link.dataset.book || "v-soznanie");
     if (!pos || !pos.ch) return;
     var box = $("resume");
     var label = $("resumeLabel");
@@ -628,6 +628,10 @@
     var text = $("chText");
     if (!text) return;
     var chapter = document.body.dataset.chapter;
+    var book = document.body.dataset.book || "v-soznanie";
+    /* ключ реакций: у каждой книги своя первая глава, отметки не должны
+       сливаться в одну кучу */
+    var rkey = (document.body.dataset.rkey || "") + chapter;
 
     function applySize(n){
       document.documentElement.style.setProperty("--rsize", SIZES[n] || SIZES[2]);
@@ -647,7 +651,7 @@
       var max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       var r = Math.min(1, Math.max(0, window.scrollY / max));
       if (prog) prog.style.width = (r * 100).toFixed(1) + "%";
-      try { store(KEY_POS, JSON.stringify({ch: chapter, r: r})); } catch(e){}
+      try { store(KEY_POS + book, JSON.stringify({ch: chapter, r: r})); } catch(e){}
     }
     window.addEventListener("scroll", function(){
       if (ticking) return;
@@ -657,7 +661,7 @@
     window.addEventListener("resize", update, {passive:true});
 
     /* вернуться туда, где человек остановился в этой же главе */
-    var pos = readPos();
+    var pos = readPos(book);
     if (pos && pos.ch === chapter && pos.r > 0.02 && pos.r < 0.995 && !location.hash){
       requestAnimationFrame(function(){
         requestAnimationFrame(function(){
@@ -685,9 +689,9 @@
       var EMOJI = ["😮","😨","💔","🔥","😢","🤔","😍","😡"];
       var paras = text.querySelectorAll("p[data-p]");
       if (!paras.length) return;
-      var counts = {}, mine = Store.myReactions(chapter), open = null;
+      var counts = {}, mine = Store.myReactions(rkey), open = null;
 
-      Store.listReactions(chapter).then(function(data){
+      Store.listReactions(rkey).then(function(data){
         counts = data;
       }).catch(function(){
         counts = {};          /* хранилище недоступно — текст важнее счётчиков */
@@ -780,10 +784,10 @@
             ev.stopPropagation();
             var next = b.classList.contains("rclear") ? "" : b.textContent;
             if (next === picked) next = "";
-            Store.react(chapter, pid, picked, next).then(function(data){
+            Store.react(rkey, pid, picked, next).then(function(data){
               counts = data;
               if (next) mine[pid] = next; else delete mine[pid];
-              Store.saveMine(chapter, mine);
+              Store.saveMine(rkey, mine);
               close();
               p.classList.add("read");
               refresh(p);

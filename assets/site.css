@@ -160,6 +160,36 @@ details[open] summary{color:var(--accent);margin-bottom:.9rem}
 .toc .min{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
 @media (max-width:560px){.toc a{grid-template-columns:2.2rem minmax(0,1fr)}.toc .min{display:none}}
 
+/* ---------- полка: книги рядом ---------- */
+.shelf{list-style:none;margin:0;padding:0;display:grid;gap:clamp(1.6rem,4vw,2.6rem);
+  grid-template-columns:repeat(auto-fit,minmax(19rem,1fr))}
+.shelf-item{display:grid;grid-template-columns:8.5rem minmax(0,1fr);gap:1.3rem;align-items:stretch}
+.shelf-cover{align-self:start}
+.shelf-body{display:flex;flex-direction:column}
+.shelf-body .actions{margin-top:auto}
+.shelf-cover{display:block;border:1px solid var(--rule);line-height:0;position:relative;
+  box-shadow:0 10px 30px -18px rgba(0,0,0,.6);transition:transform .25s,border-color .25s}
+.shelf-cover:hover{transform:translateY(-3px);border-color:var(--accent)}
+.shelf-body h3{font-family:var(--font-display);font-size:1.3rem;font-weight:700;
+  letter-spacing:-.01em;margin:0 0 .5rem;line-height:1.2}
+.shelf-body h3 a{color:var(--ink);text-decoration:none}
+.shelf-body h3 a:hover{color:var(--accent)}
+.shelf-meta{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 .8rem}
+.shelf-note{color:var(--ink-2);font-size:.95rem;margin:0 0 1.1rem}
+.shelf-wip-ask{margin:1.8rem 0 0;color:var(--ink-3);font-size:.92rem}
+.shelf-item .actions{gap:.6rem}
+.shelf-item .btn{padding:.58rem .95rem;font-size:.7rem}
+.shelf-wip .shelf-cover::after{content:"пишется";position:absolute;left:0;right:0;bottom:0;
+  font-family:var(--font-mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  text-align:center;padding:.32rem;line-height:1;color:var(--surface);background:var(--accent)}
+@media (max-width:420px){.shelf-item{grid-template-columns:6.5rem minmax(0,1fr);gap:1rem}}
+
+/* ---------- приписки о незаконченной книге ---------- */
+.hero-next{font-size:.92rem;color:var(--ink-3);margin:1.5rem 0 0;max-width:30rem}
+.wip{border-left:2px solid var(--accent);padding-left:.9rem;color:var(--ink-2)}
+.dedic{font-style:italic;color:var(--ink-3);margin-top:1.4rem}
+
 /* ---------- reader ---------- */
 .rbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--rule)}
 .rbar .wrap{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding-block:.6rem;max-width:40rem}

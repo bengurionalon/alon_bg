@@ -23,10 +23,36 @@ SITE = "https://bengurionalon.github.io/alon_bg"   # основной адрес
 # Адрес Worker'а, который хранит отзывы и реакции.
 # Пустая строка = демонстрация: записи живут только в браузере читателя.
 API = "https://alon-api.bengurionalon.workers.dev"
-BOOK = os.path.join(ROOT, "books", "v-soznanie.json")
+
+# Книги в порядке чтения. Первая живёт в корне сайта (её адреса сложились
+# раньше, чем появилась вторая, и ломать их нельзя: на них стоят ссылки,
+# к ним привязаны реакции читателей).
+#
+#   page  — адрес страницы книги
+#   ch    — образец адреса главы
+#   rkey  — приставка к ключу реакций, чтобы первая глава одной книги
+#           не делила отметки с первой главой другой
+BOOKS = [
+    {
+        "file": "v-soznanie.json",
+        "page": "kniga/",
+        "ch": "glava-{n}/",
+        "cover": "img/cover-v-soznanie.jpg",
+        "rkey": "",
+        "alt": "силуэт головы человека, внутри — созвездие и очертания города",
+    },
+    {
+        "file": "v-soznanii.json",
+        "page": "v-soznanii/",
+        "ch": "v-soznanii/glava-{n}/",
+        "cover": "img/cover-v-soznanii.jpg",
+        "rkey": "b2-",
+        "alt": "синяя обложка: силуэт человека, внутри — второй силуэт и кольцо планеты",
+    },
+]
 
 AUTHOR = "А.Л.О.Н."
-COVER = "img/cover-v-soznanie.jpg"
+COVER = BOOKS[0]["cover"]          # обложка по умолчанию для og:image
 LINKS = [
     ("Telegram", "https://t.me/ALON_BG"),
     ("Author.Today", "https://author.today/u/alonbengur"),
@@ -61,6 +87,28 @@ def minutes(chars):
     return max(1, round(chars / 1400))
 
 
+def hours(chars):
+    return max(1, round(minutes(chars) / 60))
+
+
+def rel_of(path):
+    """Путь к корню сайта со страницы, лежащей по этому адресу."""
+    return "../" * path.count("/")
+
+
+def link(frm, to):
+    """Ссылка со страницы frm на страницу to — обе заданы от корня сайта."""
+    return rel_of(frm) + to
+
+
+def chapters_word(n):
+    if n % 10 == 1 and n % 100 != 11:
+        return "глава"
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return "главы"
+    return "глав"
+
+
 def tag_paragraphs(src):
     """Помечает каждый абзац отпечатком его текста.
 
@@ -77,8 +125,9 @@ def tag_paragraphs(src):
     return re.sub(r"<p([^>]*)>(.*?)</p>", repl, src, flags=re.S)
 
 
-def head(title, desc, rel, url, extra="", theme_light="#F3EFF8"):
+def head(title, desc, rel, url, extra="", theme_light="#F3EFF8", cover=None):
     """Общая шапка документа. rel — путь к корню сайта с текущей страницы."""
+    cover = cover or COVER
     return f"""<!doctype html>
 <html lang="ru">
 <head>
@@ -93,13 +142,13 @@ def head(title, desc, rel, url, extra="", theme_light="#F3EFF8"):
 <meta property="og:title" content="{e(title)}">
 <meta property="og:description" content="{e(desc)}">
 <meta property="og:url" content="{e(url)}">
-<meta property="og:image" content="{SITE}/{COVER}">
+<meta property="og:image" content="{SITE}/{cover}">
 <meta property="og:image:width" content="1000">
 <meta property="og:image:height" content="1600">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{e(title)}">
 <meta name="twitter:description" content="{e(desc)}">
-<meta name="twitter:image" content="{SITE}/{COVER}">
+<meta name="twitter:image" content="{SITE}/{cover}">
 <meta name="theme-color" content="{theme_light}" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#130F1D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{rel}img/favicon.svg" type="image/svg+xml">
@@ -119,7 +168,7 @@ def header(rel, current=""):
   <div class="wrap">
     <a class="mark" href="{rel or './'}">А.Л.О.Н.</a>
     <nav aria-label="Основное меню">
-      <a href="{rel}kniga/"{mark('kniga')}>Книга</a>
+      <a href="{rel}#knigi"{mark('knigi')}>Книги</a>
       <a href="{rel}otzyvy/"{mark('otzyvy')}>Отзывы</a>
       <a href="{rel}#avtor"{mark('avtor')}>Автор</a>
     </nav>
@@ -161,7 +210,37 @@ def ld(obj):
 
 # ---------------------------------------------------------------- страницы
 
-def page_home(b):
+def shelf(books):
+    """Полка на главной: обе книги рядом, со своим состоянием у каждой."""
+    out = []
+    for b in books:
+        total = sum(c["chars"] for c in b["chapters"])
+        n = len(b["chapters"])
+        done = b.get("done", True)
+        meta = [AUTHOR, f"{n} {chapters_word(n)}", f"≈ {hours(total)} ч"]
+        meta.append(b["year"] if done else "пишется")
+        note = (b["lede"] if done else
+                "Продолжение. Книга ещё пишется — главы появляются здесь по мере готовности.")
+        first = b["ch"].format(n=b["chapters"][0]["n"])
+        out.append(f"""<li class="shelf-item{'' if done else ' shelf-wip'}">
+          <a class="shelf-cover" href="{b['page']}" tabindex="-1" aria-hidden="true">
+            <img src="{b['cover']}" alt="" width="1000" height="1600" loading="lazy">
+          </a>
+          <div class="shelf-body">
+            <h3><a href="{b['page']}">{e(b['title'])}</a></h3>
+            <p class="shelf-meta">{' · '.join(e(x) for x in meta if x)}</p>
+            <p class="shelf-note">{e(note)}</p>
+            <div class="actions">
+              <a class="btn btn-fill" href="{first}">Читать</a>
+              <a class="btn btn-quiet" href="{b['page']}">Подробнее</a>
+            </div>
+          </div>
+        </li>""")
+    return "\n        ".join(out)
+
+
+def page_home(books):
+    b = books[0]
     total = sum(c["chars"] for c in b["chapters"])
     schema = ld({
         "@context": "https://schema.org",
@@ -193,14 +272,24 @@ def page_home(b):
         <p class="byline">{AUTHOR} · роман · {b['year']}</p>
         <p class="lede">{LEDE}</p>
         <div class="actions">
-          <a class="btn btn-fill" href="glava-1/">Читать</a>
-          <a class="btn btn-quiet" href="kniga/">Оглавление и аннотация</a>
+          <a class="btn btn-fill" href="{b['ch'].format(n=b['chapters'][0]['n'])}">Читать</a>
+          <a class="btn btn-quiet" href="{b['page']}">Оглавление и аннотация</a>
         </div>
         <div class="resume" id="resume" hidden>
           <span id="resumeLabel"></span>
-          <a class="btn btn-quiet" id="resumeLink" data-base="" href="kniga/" hidden>Продолжить</a>
+          <a class="btn btn-quiet" id="resumeLink" data-book="{b['slug']}" data-base="" href="{b['page']}" hidden>Продолжить</a>
         </div>
+        <p class="hero-next">Продолжение — «{e(books[1]['title'])}»: книга пишется, <a href="{books[1]['page']}">первые {len(books[1]['chapters'])} {chapters_word(len(books[1]['chapters']))} уже здесь</a>.</p>
       </div>
+    </div>
+  </div>
+
+  <div class="band" id="knigi">
+    <div class="wrap">
+      <h2 class="kicker">Книги</h2>
+      <ul class="shelf">
+        {shelf(books)}
+      </ul>
     </div>
   </div>
 
@@ -218,13 +307,6 @@ def page_home(b):
     </div>
   </div>
 
-  <div class="band">
-    <div class="wrap">
-      <h2 class="kicker">Книга</h2>
-      <p class="lede" style="margin-bottom:1.2rem">«{e(b['title'])}» — {len(b['chapters'])} глав, примерно {round(minutes(total)/60)} часов чтения. Весь текст открыт и бесплатен.</p>
-      <div class="actions"><a class="btn btn-quiet" href="kniga/">Открыть страницу книги</a></div>
-    </div>
-  </div>
 </main>
 """
     out += footer("")
@@ -234,40 +316,75 @@ def page_home(b):
 
 def page_book(b):
     total = sum(c["chars"] for c in b["chapters"])
-    desc = strip_tags(b["annotation"][0])[:300]
-    schema = ld({
+    n = len(b["chapters"])
+    rel = rel_of(b["page"])
+    done = b.get("done", True)
+    url = f"{SITE}/{b['page']}"
+    cover = b["cover"]
+    first = link(b["page"], b["ch"].format(n=b["chapters"][0]["n"]))
+
+    if b["annotation"]:
+        desc = strip_tags(b["annotation"][0])[:300]
+    else:
+        desc = (f"«{b['title']}» — продолжение романа «{BOOKS[0]['title']}». "
+                f"Книга пишется: открыто {n} {chapters_word(n)}, новые появляются по мере готовности.")
+
+    schema_book = {
         "@context": "https://schema.org",
         "@type": "Book",
         "name": b["title"],
         "author": {"@type": "Person", "name": AUTHOR, "url": SITE + "/"},
         "inLanguage": "ru",
         "bookFormat": "https://schema.org/EBook",
-        "datePublished": str(b["year"]),
-        "numberOfPages": len(b["chapters"]),
-        "image": f"{SITE}/{COVER}",
+        "numberOfPages": n,
+        "image": f"{SITE}/{cover}",
         "description": desc,
-        "url": f"{SITE}/kniga/",
+        "url": url,
         "isAccessibleForFree": True,
         "hasPart": [
-            {"@type": "Chapter", "name": "Глава " + c["n"], "url": f"{SITE}/glava-{c['n']}/"}
+            {"@type": "Chapter", "name": "Глава " + c["n"],
+             "url": f"{SITE}/{b['ch'].format(n=c['n'])}"}
             for c in b["chapters"]
         ],
-    })
-    annot = "\n            ".join(f"<p>{p}</p>" for p in b["annotation"])
+    }
+    if b["year"]:
+        schema_book["datePublished"] = str(b["year"])
+    if not done:
+        schema_book["isPartOf"] = {"@type": "BookSeries", "name": "В сознание…"}
+    schema = ld(schema_book)
+
+    facts = [AUTHOR,
+             f"{n} {chapters_word(n)}" + ("" if done else " открыто"),
+             f"≈ {hours(total)} часов чтения",
+             b["year"] if done else "книга пишется"]
+    facts_html = "\n            ".join(f"<li>{e(x)}</li>" for x in facts if x)
+
+    if b["annotation"]:
+        intro = "\n            ".join(f"<p>{p}</p>" for p in b["annotation"])
+    else:
+        ded = "<br>".join(b.get("dedication") or [])
+        intro = (f'<p class="wip">Книга ещё пишется. Здесь выложено {n} {chapters_word(n)}; '
+                 f'новые появляются по мере готовности — продолжение истории '
+                 f'«{e(BOOKS[0]["title"])}».</p>')
+        if ded:
+            intro += f'\n            <p class="dedic">{ded}</p>'
+
     front = "\n        ".join(
         f'<details><summary>{e(f["title"])}</summary><div class="prose">{f["html"]}</div></details>'
         for f in b["front"]
     )
     toc = "\n        ".join(
-        f'<li><a href="../glava-{c["n"]}/">'
+        f'<li><a href="{link(b["page"], b["ch"].format(n=c["n"]))}">'
         f'<span class="num">{c["n"]}</span>'
         f'<span class="inc">{e(c["incipit"])}</span>'
         f'<span class="min">{minutes(c["chars"])} мин</span></a></li>'
         for c in b["chapters"]
     )
-    out = head(f"{b['title']} — оглавление и аннотация", desc, "../", f"{SITE}/kniga/", schema)
+    title = (f"{b['title']} — оглавление и аннотация" if b["annotation"]
+             else f"{b['title']} — продолжение, оглавление")
+    out = head(title, desc, rel, url, schema, cover=cover)
     out += '<canvas id="field" aria-hidden="true"></canvas>\n'
-    out += header("../", "kniga")
+    out += header(rel, "knigi")
     out += f"""<main id="main">
   <div class="band" style="border-top:0">
     <div class="wrap">
@@ -276,7 +393,7 @@ def page_book(b):
           <div class="cover-halo" aria-hidden="true"></div>
           <div class="cover-stage">
             <div class="cover-plate">
-              <img src="../{COVER}" alt="Обложка романа «{e(b['title'])}»: силуэт головы человека, внутри — созвездие и очертания города" width="1000" height="1600">
+              <img src="{rel}{cover}" alt="Обложка романа «{e(b['title'])}»: {e(b['alt'])}" width="1000" height="1600">
               <span class="cover-sheen" aria-hidden="true"></span>
               <span class="cover-edge" aria-hidden="true"></span>
             </div>
@@ -285,42 +402,48 @@ def page_book(b):
         <div>
           <h1>{e(b['title'])}</h1>
           <ul class="facts">
-            <li>{AUTHOR}</li>
-            <li>{len(b['chapters'])} глав</li>
-            <li>≈ {round(minutes(total)/60)} часов чтения</li>
-            <li>{b['year']}</li>
+            {facts_html}
           </ul>
           <div class="prose">
-            {annot}
+            {intro}
           </div>
           <div class="actions" style="margin-top:1.6rem">
-            <a class="btn btn-fill" href="../glava-1/">Читать с начала</a>
-            <a class="btn btn-quiet" id="resumeLink" data-base="../" data-short="1" href="../glava-1/" hidden>Продолжить</a>
+            <a class="btn btn-fill" href="{first}">Читать с начала</a>
+            <a class="btn btn-quiet" id="resumeLink" data-book="{b['slug']}" data-base="{rel}{b['chdir']}" data-short="1" href="{first}" hidden>Продолжить</a>
           </div>
         </div>
       </div>
     </div>
   </div>
-
+"""
+    if b["front"]:
+        out += f"""
   <div class="band">
     <div class="wrap">
         {front}
     </div>
   </div>
-
+"""
+    ask = ""
+    if not b.get("done", True):
+        ask = (f'<p class="shelf-wip-ask">Пока это всё, что написано. '
+               f'О новых главах я пишу в <a href="{e(dict(LINKS)["Telegram"])}"'
+               f' target="_blank" rel="noopener">Telegram</a>.</p>')
+    out += f"""
   <div class="band">
     <div class="wrap">
       <h2 class="kicker">Оглавление</h2>
       <ul class="toc">
         {toc}
       </ul>
+      {ask}
     </div>
   </div>
 </main>
 """
-    out += footer("../")
-    write("kniga/index.html", out)
-    PAGES.append(("kniga/", "0.9"))
+    out += footer(rel)
+    write(b["page"] + "index.html", out)
+    PAGES.append((b["page"], "0.9"))
 
 
 def page_chapter(b, i):
@@ -330,7 +453,9 @@ def page_chapter(b, i):
     body = strip_tags(c["html"])
     desc = body[:200].rsplit(" ", 1)[0] + "…"
     title = f"Глава {c['n']} — {b['title']}"
-    url = f"{SITE}/glava-{c['n']}/"
+    here = b["ch"].format(n=c["n"])
+    rel = rel_of(here)
+    url = f"{SITE}/{here}"
     schema = ld({
         "@context": "https://schema.org",
         "@type": "Chapter",
@@ -342,29 +467,34 @@ def page_chapter(b, i):
         "isPartOf": {
             "@type": "Book",
             "name": b["title"],
-            "url": f"{SITE}/kniga/",
+            "url": f"{SITE}/{b['page']}",
             "author": {"@type": "Person", "name": AUTHOR},
         },
     })
+
+    def ch(x):
+        return link(here, b["ch"].format(n=x["n"]))
+
     nav = ""
     if prev:
-        nav += f'<link rel="prev" href="../glava-{prev["n"]}/">\n'
+        nav += f'<link rel="prev" href="{ch(prev)}">\n'
     if nxt:
-        nav += f'<link rel="next" href="../glava-{nxt["n"]}/">\n'
+        nav += f'<link rel="next" href="{ch(nxt)}">\n'
 
     toc = "\n        ".join(
-        f'<li><a href="../glava-{x["n"]}/"{" aria-current=\"page\"" if x["n"] == c["n"] else ""}>'
+        f'<li><a href="{ch(x)}"{" aria-current=\"page\"" if x["n"] == c["n"] else ""}>'
         f'<span class="num">{x["n"]}</span>'
         f'<span class="inc">{e(x["incipit"])}</span>'
         f'<span class="min">{minutes(x["chars"])} мин</span></a></li>'
         for x in b["chapters"]
     )
 
-    out = head(title, desc, "../", url, schema + nav)
-    out = out.replace("<body>", f'<body class="reading" data-chapter="{c["n"]}">')
+    out = head(title, desc, rel, url, schema + nav, cover=b["cover"])
+    out = out.replace("<body>", f'<body class="reading" data-chapter="{c["n"]}"'
+                                f' data-book="{b["slug"]}" data-rkey="{b["rkey"]}">')
     out += f"""<div class="rbar">
   <div class="wrap">
-    <a class="rbtn" href="../kniga/">← Книга</a>
+    <a class="rbtn" href="{link(here, b['page'])}">← Книга</a>
     <button class="rbtn" id="tocBtn" aria-expanded="false" aria-controls="drawer">Оглавление</button>
     <div class="sizes" role="group" aria-label="Размер шрифта">
       <button class="s1" data-size="1" aria-pressed="false">Аа<span class="vh"> мелкий</span></button>
@@ -382,15 +512,29 @@ def page_chapter(b, i):
     </div>
     <nav class="rnav" aria-label="Переход между главами">
 """
-    out += (f'      <a class="btn btn-quiet" id="prevCh" href="../glava-{prev["n"]}/">← Глава {prev["n"]}</a>\n'
+    out += (f'      <a class="btn btn-quiet" id="prevCh" href="{ch(prev)}">← Глава {prev["n"]}</a>\n'
             if prev else '      <span></span>\n')
-    out += (f'      <a class="btn btn-quiet" id="nextCh" href="../glava-{nxt["n"]}/">Глава {nxt["n"]} →</a>\n'
-            if nxt else '      <a class="btn btn-quiet" href="../kniga/">К оглавлению</a>\n')
+    out += (f'      <a class="btn btn-quiet" id="nextCh" href="{ch(nxt)}">Глава {nxt["n"]} →</a>\n'
+            if nxt else f'      <a class="btn btn-quiet" href="{link(here, b["page"])}">К оглавлению</a>\n')
     out += "    </nav>\n"
     if not nxt:
-        out += (f'    <p class="rend">Конец романа<br>{e(b["place"])} · 26.07.{b["year"]}</p>\n'
-                '    <div class="actions" style="justify-content:center;margin-top:1.6rem">\n'
-                '      <a class="btn btn-quiet" href="../otzyvy/">Оставить отзыв о книге</a>\n'
+        if b.get("done", True):
+            out += f'    <p class="rend">Конец романа<br>{e(b["place"])} · 26.07.{b["year"]}</p>\n'
+            if b is not BOOKS[-1]:
+                nxt_b = BOOKS[BOOKS.index(b) + 1]
+                out += ('    <div class="actions" style="justify-content:center;margin-top:1.6rem">\n'
+                        f'      <a class="btn btn-fill" href="{link(here, nxt_b["page"])}">'
+                        f'Продолжение — «{e(nxt_b["title"])}»</a>\n'
+                        '    </div>\n')
+        else:
+            out += ('    <p class="rend">Продолжение пишется.<br>'
+                    'Следующая глава появится здесь, когда будет готова.</p>\n')
+            out += ('    <div class="actions" style="justify-content:center;margin-top:1.6rem">\n'
+                    f'      <a class="btn btn-fill" href="{e(dict(LINKS)["Telegram"])}" target="_blank" rel="noopener">'
+                    'Узнать о новой главе в Telegram</a>\n'
+                    '    </div>\n')
+        out += ('    <div class="actions" style="justify-content:center;margin-top:1rem">\n'
+                f'      <a class="btn btn-quiet" href="{link(here, "otzyvy/")}">Оставить отзыв о книге</a>\n'
                 '    </div>\n')
     out += """  </div>
 </main>
@@ -406,21 +550,23 @@ def page_chapter(b, i):
   </div>
 </div>
 """
-    out += footer("../")
-    write(f"glava-{c['n']}/index.html", out)
-    PAGES.append((f"glava-{c['n']}/", "0.8"))
+    out += footer(rel)
+    write(here + "index.html", out)
+    PAGES.append((here, "0.8"))
 
 
-def page_reviews(b):
-    desc = ("Книга отзывов: что читатели пишут о романе «%s». "
-            "Оставьте свой отзыв — автор читает все." % b["title"])
+def page_reviews(books):
+    names = " и ".join("«%s»" % b["title"] for b in books)
+    desc = ("Книга отзывов: что читатели пишут о книгах А.Л.О.Н. — %s. "
+            "Оставьте свой отзыв — автор читает все." % names)
     schema = ld({
         "@context": "https://schema.org",
         "@type": "WebPage",
         "name": "Книга отзывов",
         "url": f"{SITE}/otzyvy/",
         "inLanguage": "ru",
-        "about": {"@type": "Book", "name": b["title"], "url": f"{SITE}/kniga/"},
+        "about": [{"@type": "Book", "name": b["title"], "url": f"{SITE}/{b['page']}"}
+                  for b in books],
     })
     out = head("Книга отзывов — " + AUTHOR, desc, "../", f"{SITE}/otzyvy/", schema)
     out += '<canvas id="field" aria-hidden="true"></canvas>\n'
@@ -429,7 +575,7 @@ def page_reviews(b):
   <div class="band" style="border-top:0">
     <div class="wrap">
       <h1 class="page-title">Книга отзывов</h1>
-      <p class="lede">Здесь читатели пишут, что они думают о «{e(b['title'])}». Автор читает все отзывы.</p>
+      <p class="lede">Здесь читатели пишут, что они думают о книгах {e(names)}. Автор читает все отзывы.</p>
 
       <form class="form" id="reviewForm" novalidate>
         <div class="field">
@@ -523,18 +669,32 @@ def page_meta():
     write("robots.txt", f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n")
 
 
+def load_books():
+    """Сливает настройки книги с её текстом: дальше книга — один словарь."""
+    for i, cfg in enumerate(list(BOOKS)):
+        with open(os.path.join(ROOT, "books", cfg["file"]), encoding="utf-8") as f:
+            data = json.load(f)
+        data.update(cfg)
+        data["chdir"] = cfg["ch"].split("glava-")[0]
+        data.setdefault("done", bool(data.get("year")))
+        BOOKS[i] = data
+    BOOKS[0]["lede"] = LEDE
+    return BOOKS
+
+
 def main():
-    with open(BOOK, encoding="utf-8") as f:
-        b = json.load(f)
+    books = load_books()
     page_assets()
-    page_home(b)
-    page_book(b)
-    page_reviews(b)
-    for i in range(len(b["chapters"])):
-        page_chapter(b, i)
+    page_home(books)
+    page_reviews(books)
+    for b in books:
+        page_book(b)
+        for i in range(len(b["chapters"])):
+            page_chapter(b, i)
     page_404()
     page_meta()
-    print(f"готово: {len(PAGES)} страниц, глав — {len(b['chapters'])}")
+    total = sum(len(b["chapters"]) for b in books)
+    print(f"готово: {len(PAGES)} страниц, книг — {len(books)}, глав — {total}")
 
 
 if __name__ == "__main__":

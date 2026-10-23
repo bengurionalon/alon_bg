@@ -24,7 +24,7 @@
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/fonts.css">
-<link rel="stylesheet" href="assets/site.css?v=e03b5814">
+<link rel="stylesheet" href="assets/site.css?v=f132ce76">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"А.Л.О.Н.","url":"https://bengurionalon.github.io/alon_bg/","jobTitle":"Писатель","sameAs":["https://t.me/ALON_BG","https://author.today/u/alonbengur","https://www.litres.ru/author/a-l-o-n-32314078/","https://www.instagram.com/al0n_bg?exln=MXZjdmlia3R0NGh6NQ=="]}</script>
 </head>
 <body>
@@ -39,7 +39,7 @@
   <div class="wrap">
     <a class="mark" href="./">А.Л.О.Н.</a>
     <nav aria-label="Основное меню">
-      <a href="kniga/">Книга</a>
+      <a href="#knigi">Книги</a>
       <a href="otzyvy/">Отзывы</a>
       <a href="#avtor">Автор</a>
     </nav>
@@ -59,9 +59,46 @@
         </div>
         <div class="resume" id="resume" hidden>
           <span id="resumeLabel"></span>
-          <a class="btn btn-quiet" id="resumeLink" data-base="" href="kniga/" hidden>Продолжить</a>
+          <a class="btn btn-quiet" id="resumeLink" data-book="v-soznanie" data-base="" href="kniga/" hidden>Продолжить</a>
         </div>
+        <p class="hero-next">Продолжение — «…В сознании»: книга пишется, <a href="v-soznanii/">первые 10 глав уже здесь</a>.</p>
       </div>
+    </div>
+  </div>
+
+  <div class="band" id="knigi">
+    <div class="wrap">
+      <h2 class="kicker">Книги</h2>
+      <ul class="shelf">
+        <li class="shelf-item">
+          <a class="shelf-cover" href="kniga/" tabindex="-1" aria-hidden="true">
+            <img src="img/cover-v-soznanie.jpg" alt="" width="1000" height="1600" loading="lazy">
+          </a>
+          <div class="shelf-body">
+            <h3><a href="kniga/">В сознание…</a></h3>
+            <p class="shelf-meta">А.Л.О.Н. · 25 глав · ≈ 9 ч · 2022</p>
+            <p class="shelf-note">Консул Виктор Малышев летит с рутинной инспекцией в дальнюю колонию. Он просыпается один, на неисправном корабле, и бортовой журнал показывает дату, которой не может быть.</p>
+            <div class="actions">
+              <a class="btn btn-fill" href="glava-1/">Читать</a>
+              <a class="btn btn-quiet" href="kniga/">Подробнее</a>
+            </div>
+          </div>
+        </li>
+        <li class="shelf-item shelf-wip">
+          <a class="shelf-cover" href="v-soznanii/" tabindex="-1" aria-hidden="true">
+            <img src="img/cover-v-soznanii.jpg" alt="" width="1000" height="1600" loading="lazy">
+          </a>
+          <div class="shelf-body">
+            <h3><a href="v-soznanii/">…В сознании</a></h3>
+            <p class="shelf-meta">А.Л.О.Н. · 10 глав · ≈ 8 ч · пишется</p>
+            <p class="shelf-note">Продолжение. Книга ещё пишется — главы появляются здесь по мере готовности.</p>
+            <div class="actions">
+              <a class="btn btn-fill" href="v-soznanii/glava-1/">Читать</a>
+              <a class="btn btn-quiet" href="v-soznanii/">Подробнее</a>
+            </div>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
 
@@ -87,13 +124,6 @@
     </div>
   </div>
 
-  <div class="band">
-    <div class="wrap">
-      <h2 class="kicker">Книга</h2>
-      <p class="lede" style="margin-bottom:1.2rem">«В сознание…» — 25 глав, примерно 9 часов чтения. Весь текст открыт и бесплатен.</p>
-      <div class="actions"><a class="btn btn-quiet" href="kniga/">Открыть страницу книги</a></div>
-    </div>
-  </div>
 </main>
 <footer class="foot">
   <div class="wrap">
@@ -106,6 +136,6 @@
     </span>
   </div>
 </footer>
-<script src="assets/site.js?v=2d3a75b7" defer></script>
+<script src="assets/site.js?v=ae33beb0" defer></script>
 </body>
 </html>
