@@ -389,38 +389,66 @@
               cy + ax * R * c + ay * R * sn * tilt];
     }
 
-    function drawRings(tilt, live){
-      /* кольца: длинные прямые через весь кадр, рябь теней вдоль них */
-      var ra = -0.055 + tilt * 0.06;
-      var ca = Math.cos(ra), sa = Math.sin(ra);
-      var cy = H * (0.30 + tilt * 0.22) + Math.sin(t * 0.009) * H * 0.03;
-      var span = W * 1.3;
-      var bands = [-0.075, -0.052, -0.030, -0.012, 0.014, 0.036, 0.062];
-      for (var i = 0; i < bands.length; i++){
-        var off = bands[i] * H * (0.5 + tilt);
-        var seg = 26;
-        for (var k = 0; k < seg; k++){
-          var u0 = -0.5 + k / seg, u1 = -0.5 + (k + 1) / seg;
-          var sh = 0.55 + 0.45 * Math.sin(u0 * 13 + i * 1.7 + t * 0.012);
-          ctx.globalAlpha = 0.22 * sh * (0.35 + 0.65 * live);
-          ctx.beginPath();
-          ctx.moveTo(W * 0.5 + u0 * span * ca, cy + u0 * span * sa + off);
-          ctx.lineTo(W * 0.5 + u1 * span * ca, cy + u1 * span * sa + off);
-          ctx.stroke();
+    /* Сатурн: край диска и кольца вокруг него. Кольца — не прямые полосы,
+       а плоские эллипсы вокруг центра планеты, и дальняя их половина
+       уходит за диск. Без этого полосы читаются как полосы, а не как
+       кольца: «плоские, как лезвие, с едва заметной рябью теней». */
+    function saturn(tilt){
+      return {
+        x: W * 0.07,
+        y: H * (0.13 + Math.sin(t * 0.009) * 0.012),
+        R: Math.min(W, H) * 0.44,
+        flat: 0.12 + tilt * 0.07
+      };
+    }
+
+    function drawSaturn(tilt, live){
+      var S = saturn(tilt);
+      var dim = 0.35 + 0.65 * live;
+
+      /* край планеты */
+      ctx.globalAlpha = 0.17 * dim;
+      ctx.beginPath();
+      ctx.arc(S.x, S.y, S.R, 0, 6.2832);
+      ctx.stroke();
+
+      /* два пояса колец со щелью между ними */
+      var belts = [1.26, 1.34, 1.42, 1.49, 1.68, 1.78, 1.88, 1.97, 2.06];
+      for (var i = 0; i < belts.length; i++){
+        var rr = belts[i] * S.R;
+        var seg = 72, open = false;
+        var sh = 0.6 + 0.4 * Math.sin(i * 1.7 + t * 0.012);
+        ctx.globalAlpha = 0.20 * sh * dim;
+        ctx.beginPath();
+        for (var k = 0; k <= seg; k++){
+          var th = (k / seg) * 6.2832;
+          var x = S.x + rr * Math.cos(th);
+          var y = S.y + rr * S.flat * Math.sin(th);
+          /* дальняя половина прячется за диском планеты */
+          var dx = x - S.x, dy = y - S.y;
+          if (Math.sin(th) < 0 && dx * dx + dy * dy < S.R * S.R){
+            open = false;
+            continue;
+          }
+          if (!open){ ctx.moveTo(x, y); open = true; } else ctx.lineTo(x, y);
         }
+        ctx.stroke();
       }
     }
 
-    function drawTitan(live){
-      var r = Math.max(10, Math.min(W, H) * 0.035);
-      var u = ((t * 0.0016) % 1.6) - 0.3;          /* медленно идёт по кадру */
-      var x = W * (0.12 + u * 0.75), y = H * 0.22;
-      ctx.globalAlpha = 0.22 * live;
+    /* Титан проплывает по лику планеты, в ореоле дымки */
+    function drawTitan(tilt, live){
+      var S = saturn(tilt);
+      var r = Math.max(9, Math.min(W, H) * 0.032);
+      var u = ((t * 0.0013) % 1.0);
+      var x = S.x - S.R * 0.18 + u * S.R * 1.35;
+      var y = S.y + S.R * 0.42;
+      ctx.globalAlpha = 0.26 * live;
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
-      ctx.globalAlpha = 0.10 * live;
-      ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = 0.11 * live;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, 6.2832); ctx.stroke();
       ctx.globalAlpha = 0.06 * live;
-      ctx.beginPath(); ctx.arc(x, y, r * 2.1, 0, 6.2832); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r * 2.0, 0, 6.2832); ctx.stroke();
     }
 
     function drawStation(m){
@@ -431,9 +459,11 @@
       var rot = t * 0.052;
       var ax = Math.cos(a), ay = Math.sin(a);
       /* станция идёт по орбите: медленно сносит по кадру, не повторяясь */
-      var cx = W * (0.52 + 0.11 * Math.sin(t * 0.021) + 0.03 * Math.sin(t * 0.0071));
-      var cy = H * (0.48 + 0.06 * Math.sin(t * 0.013 + 1.1));
-      var L = Math.min(W * (W <= 760 ? 0.44 : 0.30), H * 0.40);
+      var cx = W * (0.51 + 0.09 * Math.sin(t * 0.021) + 0.025 * Math.sin(t * 0.0071));
+      var cy = H * (0.47 + 0.05 * Math.sin(t * 0.013 + 1.1));
+      /* размер берём так, чтобы вместе с выносами и узлом станция
+         целиком помещалась в кадр: она длиннее своих торов */
+      var L = Math.min(W * (W <= 760 ? 0.34 : 0.235), H * 0.285);
       var R = L * 0.42;
       var depth = Math.sqrt(1 - tilt * tilt);
       var e = m * m * (3 - 2 * m);          /* плавность роспуска */
@@ -445,8 +475,8 @@
         return u * u * (3 - 2 * u);
       }
 
-      drawRings(tilt, live);
-      if (live > 0.02) drawTitan(live);
+      drawSaturn(tilt, live);
+      if (live > 0.02) drawTitan(tilt, live);
 
       ctx.lineWidth = 1;
 
@@ -466,6 +496,57 @@
             if (k === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
           }
           ctx.stroke();
+        }
+      }
+
+      /* Стыковочный узел на краю центральной оси — тот самый, к которому
+         причаливает космолёт Фрая, — и панели на выносе с другого конца.
+         Схематично: несколько линий, чтобы читалось «станция», не больше. */
+      if (live > 0.02){
+        var tipx = cx + ax * L * 1.02, tipy = cy + ay * L * 1.02;
+        var nx2 = -ay, ny2 = ax;
+        ctx.globalAlpha = 0.46 * live;
+        ctx.beginPath();                                  /* поперечина узла */
+        ctx.moveTo(tipx + nx2 * R * 0.20, tipy + ny2 * R * 0.20);
+        ctx.lineTo(tipx - nx2 * R * 0.20, tipy - ny2 * R * 0.20);
+        ctx.stroke();
+        ctx.beginPath();                                  /* причальный штырь */
+        ctx.moveTo(tipx, tipy);
+        ctx.lineTo(tipx + ax * R * 0.26, tipy + ay * R * 0.26);
+        ctx.stroke();
+        var dsx = tipx + nx2 * R * 0.20, dsy = tipy + ny2 * R * 0.20;
+        var ddx = dsx + nx2 * R * 0.12 + ax * R * 0.10;
+        var ddy = dsy + ny2 * R * 0.12 + ay * R * 0.10;
+        ctx.globalAlpha = 0.34 * live;
+        ctx.beginPath();                                  /* штырь тарелки */
+        ctx.moveTo(dsx, dsy); ctx.lineTo(ddx, ddy);
+        ctx.stroke();
+        ctx.beginPath();                                  /* тарелка связи */
+        ctx.ellipse(ddx, ddy, R * 0.11, R * 0.11 * Math.max(0.25, tilt), a, 0, 6.2832);
+        ctx.stroke();
+
+        var bx = cx - ax * L * 1.42, by = cy - ay * L * 1.42;
+        var bw = R * 0.09, bl = R * 1.15;
+        ctx.globalAlpha = 0.40 * live;
+        ctx.beginPath();                                  /* вынос к панелям */
+        ctx.moveTo(cx - ax * L * 0.96, cy - ay * L * 0.96);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        for (var sd = -1; sd <= 1; sd += 2){
+          var e0x = bx + nx2 * bw * sd * 2.0, e0y = by + ny2 * bw * sd * 2.0;
+          var e1x = e0x + nx2 * bl * sd, e1y = e0y + ny2 * bl * sd;
+          ctx.beginPath();                                /* прямоугольник панели */
+          ctx.moveTo(e0x + ax * bw, e0y + ay * bw);
+          ctx.lineTo(e1x + ax * bw, e1y + ay * bw);
+          ctx.lineTo(e1x - ax * bw, e1y - ay * bw);
+          ctx.lineTo(e0x - ax * bw, e0y - ay * bw);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.globalAlpha = 0.18 * live;
+          ctx.beginPath();                                /* одна продольная жилка */
+          ctx.moveTo(e0x, e0y); ctx.lineTo(e1x, e1y);
+          ctx.stroke();
+          ctx.globalAlpha = 0.40 * live;
         }
       }
 
@@ -520,6 +601,20 @@
           ctx.stroke();
         }
 
+        /* огни по ободу: редкие точки на ближней половине, медленно мигают */
+        if (alive > 0.3){
+          for (var g = 0; g < 14; g++){
+            var thg = (g / 14) * 6.2832 + rot;
+            if (Math.sin(thg) <= 0.05) continue;         /* только ближняя половина */
+            var blink = 0.45 + 0.55 * Math.sin(t * 0.9 + g * 2.1 + i);
+            ctx.globalAlpha = 0.65 * blink * alive;
+            var pg = rim(sx, sy, ax, ay, R * 0.90, thg, tilt);
+            ctx.beginPath();
+            ctx.arc(pg[0], pg[1], 1.3, 0, 6.2832);
+            ctx.fill();
+          }
+        }
+
         /* продольные тоннели между соседними торами */
         if (i < TORI.length - 1){
           var nx = cx + ax * L * TORI[i + 1], ny = cy + ay * L * TORI[i + 1];
@@ -564,6 +659,7 @@
       ctx.clearRect(0, 0, W, H);
       ctx.lineJoin = "round";
       ctx.strokeStyle = col;
+      ctx.fillStyle = col;
       if (mode === "station"){
         drawStation(morph);
         if (morph > 0.02) drawThreads(morph * morph);
