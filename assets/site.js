@@ -254,14 +254,14 @@
     var motes = [];
 
     function sowMotes(){
-      var count = W < 620 ? 60 : (W < 1100 ? 95 : 130);
+      var count = W < 620 ? 110 : (W < 1100 ? 175 : 235);
       motes = [];
       for (var i = 0; i < count; i++){
         var R = rnd(i * 2654435761 + 7771);
         motes.push({
           x: R() * W,
           y: R() * H,
-          r: 0.55 + R() * 1.35,
+          r: 0.7 + R() * 1.6,
           sp: 0.10 + R() * 0.26,        /* подъём, пикселей за кадр */
           amp: 5 + R() * 15,            /* размах покачивания */
           ph: R() * 6.2832,
@@ -307,7 +307,7 @@
       }
 
       /* волокна между соседями */
-      var LINK = Math.min(150, Math.max(80, W * 0.10));
+      var LINK = Math.min(190, Math.max(105, W * 0.135));
       var L2 = LINK * LINK;
       ctx.lineWidth = 1;
       for (var a = 0; a < pts.length; a += 4){
@@ -316,7 +316,7 @@
           var dd = ux * ux + uy * uy;
           if (dd > L2) continue;
           var k = 1 - Math.sqrt(dd) / LINK;
-          ctx.globalAlpha = alpha * 0.34 * k * k * Math.min(1, (pts[a + 3] + pts[b + 3]) * 0.6);
+          ctx.globalAlpha = alpha * 0.62 * k * Math.min(1, (pts[a + 3] + pts[b + 3]) * 0.6);
           ctx.beginPath();
           ctx.moveTo(pts[a], pts[a + 1]);
           ctx.lineTo(pts[b], pts[b + 1]);
@@ -327,13 +327,13 @@
       /* сами частицы: ядро и ореол */
       for (var i2 = 0; i2 < pts.length; i2 += 4){
         var br = Math.min(1.6, pts[i2 + 3]);
-        ctx.globalAlpha = alpha * Math.min(0.85, 0.42 * br);
+        ctx.globalAlpha = alpha * Math.min(0.9, 0.58 * br);
         ctx.beginPath();
         ctx.arc(pts[i2], pts[i2 + 1], pts[i2 + 2], 0, 6.2832);
         ctx.fill();
-        ctx.globalAlpha = alpha * 0.10 * br;
+        ctx.globalAlpha = alpha * 0.17 * br;
         ctx.beginPath();
-        ctx.arc(pts[i2], pts[i2 + 1], pts[i2 + 2] * 3.2, 0, 6.2832);
+        ctx.arc(pts[i2], pts[i2 + 1], pts[i2 + 2] * 3.6, 0, 6.2832);
         ctx.fill();
       }
     }
