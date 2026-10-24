@@ -39,6 +39,7 @@ BOOKS = [
         "ch": "glava-{n}/",
         "cover": "img/cover-v-soznanie.jpg",
         "rkey": "",
+        "gate": "grove",
         "alt": "силуэт головы человека, внутри — созвездие и очертания города",
     },
     {
@@ -47,6 +48,7 @@ BOOKS = [
         "ch": "v-soznanii/glava-{n}/",
         "cover": "img/cover-v-soznanii.jpg",
         "rkey": "b2-",
+        "gate": "station",
         "alt": "синяя обложка: силуэт человека, внутри — второй силуэт и кольцо планеты",
     },
 ]
@@ -177,6 +179,15 @@ def header(rel, current=""):
 """
 
 
+def book_attrs(b):
+    """Чем помечена страница книги: по этим атрибутам включаются её цвета,
+    её фон и её ключ для отметок читателей под абзацами."""
+    a = f' data-book="{b["slug"]}" data-rkey="{b["rkey"]}"'
+    if b.get("gate"):
+        a += f' data-gate="{b["gate"]}"'
+    return a
+
+
 def footer(rel):
     links = "\n      ".join(
         f'<a href="{e(u)}" target="_blank" rel="noopener">{e(n)}</a>' for n, u in LINKS
@@ -219,8 +230,8 @@ def shelf(books):
         done = b.get("done", True)
         meta = [AUTHOR, f"{n} {chapters_word(n)}", f"≈ {hours(total)} ч"]
         meta.append(b["year"] if done else "пишется")
-        note = (b["lede"] if done else
-                "Продолжение. Книга ещё пишется — главы появляются здесь по мере готовности.")
+        note = b.get("lede") or (
+            "Продолжение. Книга ещё пишется — главы появляются здесь по мере готовности.")
         first = b["ch"].format(n=b["chapters"][0]["n"])
         out.append(f"""<li class="shelf-item{'' if done else ' shelf-wip'}">
           <a class="shelf-cover" href="{b['page']}" tabindex="-1" aria-hidden="true">
@@ -256,12 +267,6 @@ def page_home(books):
     author = "\n          ".join(f"<p>{p}</p>" for p in AUTHOR_TEXT)
     out = head(f"{b['title']} — {AUTHOR}", LEDE, "", SITE + "/", schema)
     out += '<canvas id="field" aria-hidden="true"></canvas>\n'
-    out += """<div id="gate">
-  <div class="gate-words">
-    <p>Нажмите, чтобы войти</p>
-  </div>
-</div>
-"""
     out += header("", "")
     out += f"""<main id="main">
   <div class="hero">
@@ -359,15 +364,15 @@ def page_book(b):
              b["year"] if done else "книга пишется"]
     facts_html = "\n            ".join(f"<li>{e(x)}</li>" for x in facts if x)
 
+    ded = "<br>".join(b.get("dedication") or [])
     if b["annotation"]:
         intro = "\n            ".join(f"<p>{p}</p>" for p in b["annotation"])
     else:
-        ded = "<br>".join(b.get("dedication") or [])
         intro = (f'<p class="wip">Книга ещё пишется. Здесь выложено {n} {chapters_word(n)}; '
                  f'новые появляются по мере готовности — продолжение истории '
                  f'«{e(BOOKS[0]["title"])}».</p>')
-        if ded:
-            intro += f'\n            <p class="dedic">{ded}</p>'
+    if ded:
+        intro += f'\n            <p class="dedic">{ded}</p>'
 
     front = "\n        ".join(
         f'<details><summary>{e(f["title"])}</summary><div class="prose">{f["html"]}</div></details>'
@@ -383,6 +388,13 @@ def page_book(b):
     title = (f"{b['title']} — оглавление и аннотация" if b["annotation"]
              else f"{b['title']} — продолжение, оглавление")
     out = head(title, desc, rel, url, schema, cover=cover)
+    out = out.replace("<body>", f'<body{book_attrs(b)}>')
+    if b.get("gate"):
+        out += ('<div id="gate">\n'
+                '  <div class="gate-words">\n'
+                '    <p>Нажмите, чтобы войти</p>\n'
+                '  </div>\n'
+                '</div>\n')
     out += '<canvas id="field" aria-hidden="true"></canvas>\n'
     out += header(rel, "knigi")
     out += f"""<main id="main">
@@ -491,7 +503,7 @@ def page_chapter(b, i):
 
     out = head(title, desc, rel, url, schema + nav, cover=b["cover"])
     out = out.replace("<body>", f'<body class="reading" data-chapter="{c["n"]}"'
-                                f' data-book="{b["slug"]}" data-rkey="{b["rkey"]}">')
+                                f'{book_attrs(b)}>')
     out += f"""<div class="rbar">
   <div class="wrap">
     <a class="rbtn" href="{link(here, b['page'])}">← Книга</a>

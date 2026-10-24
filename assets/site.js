@@ -177,7 +177,8 @@
     var mqDark = window.matchMedia("(prefers-color-scheme: dark)");
 
     function readColor(){
-      var v = getComputedStyle(document.documentElement).getPropertyValue("--field").trim();
+      var v = getComputedStyle(document.body || document.documentElement)
+                .getPropertyValue("--field").trim();
       if (v) col = v;
     }
     function size(){
@@ -189,7 +190,7 @@
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (changed || !rows.length) layout();
-      if (changed || !plants.length) sow();
+      if (mode !== "station" && (changed || !plants.length)) sow();
       return true;
     }
 
@@ -367,6 +368,176 @@
       for (var i = 0; i < plants.length; i++) drawPlant(plants[i], morph, i);
     }
 
+    /* ---- станция «СОЮЗ-12» ----
+       «Четыре пятнадцатикилометровых в диаметре тора, вмерзших в центральную
+       ось, связаны паутиной спиц-тоннелей» — так она видна из зала прибытия
+       во второй главе. За ней Сатурн: кольца плоские, как лезвие, с едва
+       заметной рябью теней, и мутный Титан, проплывающий по лику планеты.
+       Курсор поворачивает станцию: ось ведёт за собой по горизонтали,
+       наклон — по вертикали, поэтому торы то округляются, то встают ребром. */
+
+    var TORI = [-0.78, -0.26, 0.26, 0.78];   /* места торов вдоль оси */
+    var SPOKES = 10;                          /* спиц на тор */
+
+    function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
+
+    /* Точка на ободе: окружность, видимая под наклоном, ложится эллипсом —
+       во всю ширину поперёк оси и сплющенным вдоль неё. */
+    function rim(cx, cy, ax, ay, R, th, tilt){
+      var c = Math.cos(th), sn = Math.sin(th);
+      return [cx - ay * R * c + ax * R * sn * tilt,
+              cy + ax * R * c + ay * R * sn * tilt];
+    }
+
+    function drawRings(tilt, live){
+      /* кольца: длинные прямые через весь кадр, рябь теней вдоль них */
+      var ra = -0.055 + tilt * 0.06;
+      var ca = Math.cos(ra), sa = Math.sin(ra);
+      var cy = H * (0.30 + tilt * 0.22) + Math.sin(t * 0.009) * H * 0.03;
+      var span = W * 1.3;
+      var bands = [-0.075, -0.052, -0.030, -0.012, 0.014, 0.036, 0.062];
+      for (var i = 0; i < bands.length; i++){
+        var off = bands[i] * H * (0.5 + tilt);
+        var seg = 26;
+        for (var k = 0; k < seg; k++){
+          var u0 = -0.5 + k / seg, u1 = -0.5 + (k + 1) / seg;
+          var sh = 0.55 + 0.45 * Math.sin(u0 * 13 + i * 1.7 + t * 0.012);
+          ctx.globalAlpha = 0.22 * sh * (0.35 + 0.65 * live);
+          ctx.beginPath();
+          ctx.moveTo(W * 0.5 + u0 * span * ca, cy + u0 * span * sa + off);
+          ctx.lineTo(W * 0.5 + u1 * span * ca, cy + u1 * span * sa + off);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function drawTitan(live){
+      var r = Math.max(10, Math.min(W, H) * 0.035);
+      var u = ((t * 0.0016) % 1.6) - 0.3;          /* медленно идёт по кадру */
+      var x = W * (0.12 + u * 0.75), y = H * 0.22;
+      ctx.globalAlpha = 0.22 * live;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = 0.10 * live;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = 0.06 * live;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.1, 0, 6.2832); ctx.stroke();
+    }
+
+    function drawStation(m){
+      var ux = (lx < -1000 ? 0 : (lx - W * 0.5) / W);
+      var uy = (ly < -1000 ? 0 : (ly - H * 0.5) / H);
+      var a = -0.92 + ux * 0.22 * hold + 0.03 * Math.sin(t * 0.048);
+      var tilt = clamp(0.44 + uy * 0.22 * hold + 0.04 * Math.sin(t * 0.037), 0.14, 0.72);
+      var rot = t * 0.052;
+      var ax = Math.cos(a), ay = Math.sin(a);
+      /* станция идёт по орбите: медленно сносит по кадру, не повторяясь */
+      var cx = W * (0.52 + 0.11 * Math.sin(t * 0.021) + 0.03 * Math.sin(t * 0.0071));
+      var cy = H * (0.48 + 0.06 * Math.sin(t * 0.013 + 1.1));
+      var L = Math.min(W * (W <= 760 ? 0.44 : 0.30), H * 0.40);
+      var R = L * 0.42;
+      var depth = Math.sqrt(1 - tilt * tilt);
+      var e = m * m * (3 - 2 * m);          /* плавность роспуска */
+      var live = 1 - m;
+      /* торы расходятся не разом, а по очереди, от дальнего к ближнему */
+      function turn(i){
+        var start = i * 0.15, span = 1 - 0.15 * (TORI.length - 1);
+        var u = clamp((m - start) / span, 0, 1);
+        return u * u * (3 - 2 * u);
+      }
+
+      drawRings(tilt, live);
+      if (live > 0.02) drawTitan(live);
+
+      ctx.lineWidth = 1;
+
+      /* центральная ось: две образующие; при роспуске вытягивается в нить */
+      if (live > 0.02){
+        for (var sgn = -1; sgn <= 1; sgn += 2){
+          var hw = R * 0.06 * sgn;
+          ctx.globalAlpha = 0.62 * live;
+          ctx.beginPath();
+          var arow = rows[(sgn > 0 ? 1 : 4) % rows.length];
+          for (var k = 0; k <= 16; k++){
+            var u = k / 16;
+            var px = cx + ax * L * (u * 1.94 - 0.97) - ay * hw;
+            var py = cy + ay * L * (u * 1.94 - 0.97) + ax * hw;
+            var qx = u * W, qy = threadY(arow, qx, false);
+            var fx = px + (qx - px) * e, fy = py + (qy - py) * e;
+            if (k === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+          }
+          ctx.stroke();
+        }
+      }
+
+      for (var i = 0; i < TORI.length; i++){
+        var sx = cx + ax * L * TORI[i], sy = cy + ay * L * TORI[i];
+        var ei2 = turn(i), alive = 1 - ei2;
+
+        /* тор — кольцо из внешнего и внутреннего обода; при роспуске
+           каждый обод разворачивается в полосу поперёк экрана */
+        for (var ei = 0; ei < 2; ei++){
+          var Re = ei ? R * 0.80 : R;
+          if (m > 0.001){
+            var row = rows[((i * 2 + ei) * 5 + 2) % rows.length];
+            ctx.globalAlpha = (0.46 * alive + 0.30) * (ei ? 0.72 : 1);
+            ctx.beginPath();
+            for (var k2 = 0; k2 <= 52; k2++){
+              var u2 = k2 / 52;
+              var th0 = u2 * 6.2832 + rot;
+              var pt0 = rim(sx, sy, ax, ay, Re, th0, tilt);
+              var qx2 = u2 * W, qy2 = threadY(row, qx2, false);
+              var fx2 = pt0[0] + (qx2 - pt0[0]) * ei2, fy2 = pt0[1] + (qy2 - pt0[1]) * ei2;
+              if (k2 === 0) ctx.moveTo(fx2, fy2); else ctx.lineTo(fx2, fy2);
+            }
+            ctx.stroke();
+          } else {
+            for (var half = 0; half < 2; half++){
+              ctx.globalAlpha = (half ? 0.80 : 0.34) * (ei ? 0.72 : 1);
+              ctx.beginPath();
+              var from = half ? 0 : Math.PI, to = from + Math.PI;
+              for (var k3 = 0; k3 <= 30; k3++){
+                var th = from + (to - from) * (k3 / 30) + rot;
+                var pt = rim(sx, sy, ax, ay, Re, th, tilt);
+                if (k3 === 0) ctx.moveTo(pt[0], pt[1]); else ctx.lineTo(pt[0], pt[1]);
+              }
+              ctx.stroke();
+            }
+          }
+        }
+
+        if (alive <= 0.02) continue;
+
+        /* спицы-тоннели: от ступицы на оси к внутреннему ободу */
+        for (var j = 0; j < SPOKES; j++){
+          var th2 = (j / SPOKES) * 6.2832 + rot;
+          var near = Math.sin(th2) * depth;
+          ctx.globalAlpha = (0.20 + 0.32 * (near * 0.5 + 0.5)) * (0.75 + 0.45 * hold) * alive;
+          var h0 = rim(sx, sy, ax, ay, R * 0.09, th2, tilt);
+          var p2 = rim(sx, sy, ax, ay, R * 0.80, th2, tilt);
+          ctx.beginPath();
+          ctx.moveTo(h0[0], h0[1]);
+          ctx.lineTo(p2[0], p2[1]);
+          ctx.stroke();
+        }
+
+        /* продольные тоннели между соседними торами */
+        if (i < TORI.length - 1){
+          var nx = cx + ax * L * TORI[i + 1], ny = cy + ay * L * TORI[i + 1];
+          for (var mm = 0; mm < 4; mm++){
+            var th3 = (mm / 4) * 6.2832 + rot;
+            var n3 = Math.sin(th3) * depth;
+            ctx.globalAlpha = (0.18 + 0.26 * (n3 * 0.5 + 0.5)) * alive * (1 - turn(i + 1));
+            var q0 = rim(sx, sy, ax, ay, R, th3, tilt);
+            var q1 = rim(nx, ny, ax, ay, R, th3, tilt);
+            ctx.beginPath();
+            ctx.moveTo(q0[0], q0[1]);
+            ctx.lineTo(q1[0], q1[1]);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
     function step(dt){
       t += 0.016;
       hold += (holdTo - hold) * 0.05;
@@ -376,9 +547,9 @@
 
       if (mode !== "strings"){
         if (morphTo > 0){
-          morph += (morphTo - morph) * 0.045;
+          morph += (morphTo - morph) * (mode === "station" ? 0.019 : 0.045);
           if (morph > 0.985){ morph = 1; mode = "strings"; }
-        } else if (!mqReduce.matches){
+        } else if (mode === "grove" && !mqReduce.matches){
           /* наезд: поле едет на зрителя, ушедшее возвращается к горизонту */
           for (var j = 0; j < plants.length; j++){
             var pl = plants[j];
@@ -393,7 +564,10 @@
       ctx.clearRect(0, 0, W, H);
       ctx.lineJoin = "round";
       ctx.strokeStyle = col;
-      if (mode === "strings"){
+      if (mode === "station"){
+        drawStation(morph);
+        if (morph > 0.02) drawThreads(morph * morph);
+      } else if (mode === "strings"){
         drawThreads(1);
       } else {
         drawGrove();
@@ -437,9 +611,20 @@
     readColor();
     if (size()){ draw(); start(); }
 
+    function begin(which){
+      mode = which; morph = 0; morphTo = 0;
+      if (size()) draw();
+      start();
+    }
     return {
-      grove: function(){ mode = "grove"; morph = 0; morphTo = 0; if (size()) draw(); start(); },
-      settle: function(){ if (mode === "grove"){ morphTo = 1; if (mqReduce.matches){ morph = 1; mode = "strings"; draw(); } } }
+      grove: function(){ begin("grove"); },
+      station: function(){ begin("station"); },
+      settle: function(){
+        if (mode === "grove" || mode === "station"){
+          morphTo = 1;
+          if (mqReduce.matches){ morph = 1; mode = "strings"; draw(); }
+        }
+      }
     };
   })();
 
@@ -494,44 +679,53 @@
     link.hidden = false;
   })();
 
-  /* ======== заставка: наезд на поле ======== */
+  /* ======== заставка книги ========
+     У каждой книги своя: у первой поле, посреди которого Виктор приходит
+     в себя, у второй станция на орбите Сатурна. По нажатию то и другое
+     расходится в нити, которые дальше живут фоном книги. Заставка
+     показывается при каждом заходе на страницу книги, но уходит от любого
+     движения читателя — нажатия, клавиши, прокрутки. */
   (function(){
     var gate = $("gate");
     if (!gate) return;
-    var KEY = "alon.gate";
     var body = document.body;
+    var kind = body.dataset.gate || "grove";
     var mqReduce = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    var seen = false;
-    try { seen = localStorage.getItem(KEY) === "1"; } catch(e){}
-    if (seen || location.hash){ gate.remove(); return; }
+    /* по ссылке вглубь страницы заставка только мешает */
+    if (location.hash || !FIELD[kind]){ gate.remove(); return; }
+
+    var words = gate.querySelector(".gate-words p");
+    if (words && kind === "station") words.textContent = "Нажмите, чтобы войти";
 
     body.classList.add("gate-on");
-    FIELD.grove();
+    FIELD[kind]();
     requestAnimationFrame(function(){ body.classList.add("gate-ready"); });
 
     var opening = false;
     function enter(){
       if (opening) return;
       opening = true;
-      try { localStorage.setItem(KEY, "1"); } catch(e){}
-      FIELD.settle();                              /* растения ложатся в нити */
+      FIELD.settle();                   /* поле ложится, станция расходится */
       body.classList.add("gate-opening");
       setTimeout(function(){
         body.classList.remove("gate-on", "gate-ready", "gate-opening");
         body.classList.add("gate-off");
         setTimeout(function(){ if (gate.parentNode) gate.remove(); }, 1200);
-      }, mqReduce.matches ? 0 : 1500);
+      }, mqReduce.matches ? 0 : (kind === "station" ? 2200 : 1500));
     }
 
-    gate.addEventListener("click", enter);
-    document.addEventListener("keydown", function(e){
+    function onKey(e){
       if (!opening && body.classList.contains("gate-on") &&
           (e.key === "Enter" || e.key === " " || e.key === "Escape")){
         e.preventDefault();
         enter();
       }
-    });
+    }
+    gate.addEventListener("click", enter);
+    gate.addEventListener("touchstart", enter, {passive:true});
+    gate.addEventListener("wheel", enter, {passive:true});
+    document.addEventListener("keydown", onKey);
   })();
 
   /* ======== книга отзывов ======== */

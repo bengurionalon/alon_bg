@@ -37,6 +37,41 @@
   color-scheme:dark;
 }
 
+/* ---------- вторая книга: цвета сняты с её обложки ----------
+   Токены переопределяются на body, а не на :root, поэтому голубым
+   становится только то, что лежит внутри книги: её страница и главы.
+   Главная и книга отзывов остаются фиолетовыми. */
+body[data-book="v-soznanii"]{
+  --bg:#EDF2FA;
+  --surface:#FAFCFF;
+  --ink:#121A2C;
+  --ink-2:#44536F;
+  --ink-3:#5A6A88;
+  --rule:#CFDCEE;
+  --accent:#17508F;
+  --accent-2:#2E6FB8;
+  --term-bg:#E3EBF6;
+  --term-ink:#274B7A;
+  --glow:rgba(32,96,160,.22);
+  --field:rgba(23,80,143,.58);
+  --veil:rgba(237,242,250,.84);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) body[data-book="v-soznanii"]{
+    --bg:#0B1220; --surface:#121B2C; --ink:#E2EAF7; --ink-2:#93A6C4; --ink-3:#7D90B0;
+    --rule:#213148; --accent:#8FC2F5; --accent-2:#6B9ED6;
+    --term-bg:#152238; --term-ink:#A8C6EC; --glow:rgba(100,160,230,.30);
+    --field:rgba(150,196,246,.58); --veil:rgba(11,18,32,.82);
+  }
+}
+:root[data-theme="dark"] body[data-book="v-soznanii"]{
+    --bg:#0B1220; --surface:#121B2C; --ink:#E2EAF7; --ink-2:#93A6C4; --ink-3:#7D90B0;
+    --rule:#213148; --accent:#8FC2F5; --accent-2:#6B9ED6;
+    --term-bg:#152238; --term-ink:#A8C6EC; --glow:rgba(100,160,230,.30);
+    --field:rgba(150,196,246,.58); --veil:rgba(11,18,32,.82);
+}
+
+
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{
