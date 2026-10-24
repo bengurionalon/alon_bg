@@ -57,6 +57,8 @@ BOOKS = [
         "ch": "probuzhdenie/glava-{n}/",
         "cover": "img/cover-probuzhdenie.jpg",
         "rkey": "b3-",
+        "gate": "oblivion",
+        "field": "pollen",
         "alt": "золотистая обложка: тёмный силуэт человека на фоне светлого круга, "
                "сквозь него проступают ветви с листьями и второй силуэт",
     },
@@ -194,6 +196,8 @@ def book_attrs(b):
     a = f' data-book="{b["slug"]}" data-rkey="{b["rkey"]}"'
     if b.get("gate"):
         a += f' data-gate="{b["gate"]}"'
+    if b.get("field"):
+        a += f' data-field="{b["field"]}"'
     return a
 
 

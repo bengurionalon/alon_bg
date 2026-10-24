@@ -173,6 +173,7 @@
     var rows = [], plants = [];
     var tx = -9999, ty = -9999, lx = -9999, ly = -9999, hold = 0, holdTo = 0;
     var mode = "strings", morph = 0, morphTo = 0;
+    var rest = "strings";          /* чем живёт фон после заставки */
     var mqReduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     var mqDark = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -190,7 +191,8 @@
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (changed || !rows.length) layout();
-      if (mode !== "station" && (changed || !plants.length)) sow();
+      if (mode !== "station" && mode !== "oblivion" && (changed || !plants.length)) sow();
+      if (rest === "pollen" && (changed || !motes.length)) sowMotes();
       return true;
     }
 
@@ -241,6 +243,278 @@
         ctx.lineWidth = 1;
         ctx.stroke();
       }
+    }
+
+    /* ---- светящаяся пыльца ----
+       «Нити, невидимые и жуткие, вплетаются в воздух, тянутся к тебе» —
+       пыльца чужих растений из третьей книги: просыпается в темноте,
+       светится и движется с целью. Частицы медленно поднимаются,
+       покачиваясь, и между оказавшимися рядом протягивается волокно.
+       Курсор они чувствуют: тянутся к нему и разгораются. */
+    var motes = [];
+
+    function sowMotes(){
+      var count = W < 620 ? 60 : (W < 1100 ? 95 : 130);
+      motes = [];
+      for (var i = 0; i < count; i++){
+        var R = rnd(i * 2654435761 + 7771);
+        motes.push({
+          x: R() * W,
+          y: R() * H,
+          r: 0.55 + R() * 1.35,
+          sp: 0.10 + R() * 0.26,        /* подъём, пикселей за кадр */
+          amp: 5 + R() * 15,            /* размах покачивания */
+          ph: R() * 6.2832,
+          sw: 0.006 + R() * 0.012,      /* частота покачивания */
+          br: 0.35 + R() * 0.65,        /* своя яркость */
+          pu: 0.5 + R() * 1.6,          /* частота вспышки */
+          pp: R() * 6.2832
+        });
+      }
+    }
+
+    function stepMotes(){
+      for (var i = 0; i < motes.length; i++){
+        var m = motes[i];
+        m.y -= m.sp;
+        if (m.y < -12){ m.y = H + 12; m.x = Math.random() * W; }
+      }
+    }
+
+    function drawPollen(alpha){
+      if (!motes.length) sowMotes();
+      var pull = hold > 0.02 && lx > -1000;
+      var pts = [];
+      for (var i = 0; i < motes.length; i++){
+        var m = motes[i];
+        var x = m.x + Math.sin(t * m.sw * 12 + m.ph) * m.amp;
+        var y = m.y;
+        var glow = 1;
+        if (pull){
+          var dx = lx - x, dy = ly - y;
+          var d2 = dx * dx + dy * dy;
+          var Rr = Math.min(300, Math.max(170, W * 0.2));
+          if (d2 < Rr * Rr){
+            var d = Math.sqrt(d2) || 1;
+            var f = (1 - d / Rr);
+            x += (dx / d) * f * f * 26 * hold;      /* тянется к руке */
+            y += (dy / d) * f * f * 26 * hold;
+            glow = 1 + f * 1.5 * hold;              /* и разгорается */
+          }
+        }
+        var pulse = 0.72 + 0.28 * Math.sin(t * m.pu * 0.6 + m.pp);
+        pts.push(x, y, m.r, m.br * glow * pulse);
+      }
+
+      /* волокна между соседями */
+      var LINK = Math.min(150, Math.max(80, W * 0.10));
+      var L2 = LINK * LINK;
+      ctx.lineWidth = 1;
+      for (var a = 0; a < pts.length; a += 4){
+        for (var b = a + 4; b < pts.length; b += 4){
+          var ux = pts[a] - pts[b], uy = pts[a + 1] - pts[b + 1];
+          var dd = ux * ux + uy * uy;
+          if (dd > L2) continue;
+          var k = 1 - Math.sqrt(dd) / LINK;
+          ctx.globalAlpha = alpha * 0.34 * k * k * Math.min(1, (pts[a + 3] + pts[b + 3]) * 0.6);
+          ctx.beginPath();
+          ctx.moveTo(pts[a], pts[a + 1]);
+          ctx.lineTo(pts[b], pts[b + 1]);
+          ctx.stroke();
+        }
+      }
+
+      /* сами частицы: ядро и ореол */
+      for (var i2 = 0; i2 < pts.length; i2 += 4){
+        var br = Math.min(1.6, pts[i2 + 3]);
+        ctx.globalAlpha = alpha * Math.min(0.85, 0.42 * br);
+        ctx.beginPath();
+        ctx.arc(pts[i2], pts[i2 + 1], pts[i2 + 2], 0, 6.2832);
+        ctx.fill();
+        ctx.globalAlpha = alpha * 0.10 * br;
+        ctx.beginPath();
+        ctx.arc(pts[i2], pts[i2 + 1], pts[i2 + 2] * 3.2, 0, 6.2832);
+        ctx.fill();
+      }
+    }
+
+    /* ---- Забвение ----
+       Город, покинутый сотни лет назад: «ветви деревьев, как жадные руки,
+       обвили покосившиеся небоскрёбы», рёбра обрушенных мостов, осколки
+       стекла в темноте внизу. По нажатию башни осыпаются слева направо,
+       и остаётся висеть пыльца. */
+    var towers = [], vines = [];
+
+    function raise(){
+      var n = W < 620 ? 9 : (W < 1100 ? 12 : 15);
+      towers = [];
+      for (var i = 0; i < n; i++){
+        var R = rnd(i * 2246822519 + 331);
+        var d = 0.45 + R() * 0.55;                  /* 1 — ближе всех */
+        towers.push({
+          u: (i + 0.5) / n + (R() - 0.5) * (0.5 / n),
+          w: 0.032 + R() * 0.05,
+          h: 0.18 + Math.pow(R(), 0.75) * 0.44,
+          lean: (R() - 0.5) * 0.30,                 /* покосились всерьёз */
+          d: d,
+          cut: R() < 0.55 ? 0.12 + R() * 0.3 : 0,   /* верх срезан по косой */
+          spike: R() < 0.4,                         /* торчит обломок */
+          split: R() < 0.5                          /* одна линия по фасаду */
+        });
+      }
+      towers.sort(function(a, b){ return a.d - b.d; });
+
+      vines = [];
+      for (var v = 0; v < towers.length; v++){
+        if (v % 2) continue;                        /* обвита не каждая */
+        var Q = rnd(v * 912838217 + 77);
+        vines.push({
+          t: v,
+          side: Q() < 0.5 ? -1 : 1,
+          up: 0.55 + Q() * 0.5,                     /* докуда долезла */
+          wob: 0.2 + Q() * 0.5,
+          leaves: 4 + Math.floor(Q() * 4),
+          ph: Q() * 6.2832
+        });
+      }
+    }
+
+    function towerAt(T, drift, ux){
+      var hy = H * 0.76 - (1 - T.d) * H * 0.11;     /* дальние стоят выше */
+      var par = (1.15 - T.d) * 30;
+      var x = ((T.u + drift * T.d) % 1.3 - 0.15) * W - ux * par;
+      var w = T.w * W * (0.55 + T.d * 0.6);
+      var h = T.h * H * (0.5 + T.d * 0.65);
+      return {x: x, w: w, h: h, hy: hy, top: hy - h, dx: T.lean * w * 1.7};
+    }
+
+    function drawOblivion(m){
+      if (!towers.length) raise();
+      var ux = (lx < -1000 ? 0 : (lx - W * 0.5) / W);
+      var drift = t * 0.0013;
+
+      for (var i = 0; i < towers.length; i++){
+        var T = towers[i];
+        var start = T.u * 0.5, span = 0.5;
+        var g = clamp((m - start) / span, 0, 1);
+        var gone = g * g * (3 - 2 * g);
+        if (gone > 0.985) continue;
+
+        var G = towerAt(T, drift, ux);
+        var h = G.h * (1 - gone * 0.5);
+        var top = G.hy - h, dx = T.lean * G.w * 1.7;
+        var a = (0.18 + 0.40 * T.d) * (1 - gone);
+
+        ctx.globalAlpha = a;
+        ctx.beginPath();
+        ctx.moveTo(G.x - G.w / 2, G.hy);
+        ctx.lineTo(G.x - G.w / 2 + dx, top);
+        if (T.cut){
+          ctx.lineTo(G.x + G.w / 2 + dx, top + T.cut * G.w * 1.3);  /* срез по косой */
+        } else {
+          ctx.lineTo(G.x + G.w / 2 + dx, top);
+        }
+        ctx.lineTo(G.x + G.w / 2, G.hy);
+        ctx.stroke();
+
+        if (T.spike){                                        /* обломок арматуры */
+          ctx.globalAlpha = a * 0.7;
+          ctx.beginPath();
+          ctx.moveTo(G.x - G.w * 0.2 + dx, top + T.cut * G.w * 0.4);
+          ctx.lineTo(G.x - G.w * 0.1 + dx, top - G.w * 0.5);
+          ctx.stroke();
+        }
+        if (T.split){                                        /* ребро фасада */
+          ctx.globalAlpha = a * 0.45;
+          ctx.beginPath();
+          ctx.moveTo(G.x, G.hy);
+          ctx.lineTo(G.x + dx, top + (T.cut ? T.cut * G.w * 0.65 : 0));
+          ctx.stroke();
+        }
+      }
+
+      /* ветви, обвившие башни */
+      for (var v = 0; v < vines.length; v++){
+        var V = vines[v];
+        var TT = towers[V.t];
+        if (!TT) continue;
+        var vg = clamp((m - TT.u * 0.5) / 0.5, 0, 1);
+        if (vg > 0.985) continue;
+        var G2 = towerAt(TT, drift, ux);
+        var sway = Math.sin(t * 0.25 + V.ph) * 0.01 * W;
+        var x0 = G2.x + V.side * G2.w * 0.5, y0 = G2.hy + H * 0.015;
+        var y1 = G2.hy - G2.h * V.up;
+        var x1 = G2.x + V.side * G2.w * 0.2 + TT.lean * G2.w * 1.4 + sway;
+        var cx2 = x0 + V.side * G2.w * V.wob * 2.2;
+        var cy2 = y0 + (y1 - y0) * 0.45;
+
+        ctx.globalAlpha = (0.14 + 0.26 * TT.d) * (1 - vg);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.quadraticCurveTo(cx2, cy2, x1, y1);
+        ctx.stroke();
+
+        var ln = Math.max(6, H * 0.019) * (0.6 + TT.d * 0.6);
+        ctx.globalAlpha = (0.11 + 0.20 * TT.d) * (1 - vg);
+        for (var lf = 1; lf <= V.leaves; lf++){
+          var sL = lf / (V.leaves + 1);
+          var a1 = 1 - sL;
+          var px2 = a1 * a1 * x0 + 2 * a1 * sL * cx2 + sL * sL * x1;
+          var py2 = a1 * a1 * y0 + 2 * a1 * sL * cy2 + sL * sL * y1;
+          var sd = lf % 2 ? 1 : -1;
+          ctx.beginPath();
+          ctx.moveTo(px2, py2);
+          ctx.quadraticCurveTo(px2 + sd * ln * 0.8, py2 - ln * 0.55,
+                               px2 + sd * ln * 1.4, py2 + ln * 0.3);
+          ctx.quadraticCurveTo(px2 + sd * ln * 0.6, py2 + ln * 0.2, px2, py2);
+          ctx.stroke();
+        }
+      }
+
+      /* рёбра обрушенного моста поверх дальнего плана */
+      var bg = clamp((m - 0.2) / 0.55, 0, 1);
+      if (bg < 0.98){
+        var by = H * 0.70;
+        var bx = -W * 0.04 - ux * 16, bw = W * 0.46;
+        ctx.globalAlpha = 0.30 * (1 - bg);
+        ctx.beginPath();                                   /* настил до обрыва */
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + bw * 0.62, by - H * 0.012);
+        ctx.stroke();
+        ctx.beginPath();                                   /* обломок за провалом */
+        ctx.moveTo(bx + bw * 0.86, by - H * 0.004);
+        ctx.lineTo(bx + bw, by + H * 0.004);
+        ctx.stroke();
+        ctx.globalAlpha = 0.17 * (1 - bg);
+        for (var rb = 0; rb < 7; rb++){                    /* рёбра, висящие вниз */
+          var sr = rb / 6;
+          if (sr > 0.62 && sr < 0.86) continue;
+          var rx = bx + bw * sr;
+          var ry = by - H * 0.012 * Math.min(1, sr / 0.62);
+          ctx.beginPath();
+          ctx.moveTo(rx, ry);
+          ctx.lineTo(rx + (rb % 2 ? 5 : -4), ry + H * (0.03 + (rb % 3) * 0.015));
+          ctx.stroke();
+        }
+      }
+
+      /* осколки стекла внизу, отражающие звёзды */
+      if (m < 0.9){
+        ctx.globalAlpha = 0.8 * (1 - m);
+        for (var g2 = 0; g2 < 30; g2++){
+          var S = rnd(g2 * 48271 + 5);
+          var sx = ((S() + drift * 0.4) % 1) * W;
+          var sy = H * (0.78 + S() * 0.19);
+          if (0.35 + 0.65 * Math.sin(t * 1.3 + g2 * 1.7) < 0.55) continue;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.2, 0, 6.2832);
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawRest(alpha){
+      if (rest === "pollen") drawPollen(alpha); else drawThreads(alpha);
     }
 
     /* ---- поле ---- */
@@ -635,6 +909,7 @@
 
     function step(dt){
       t += 0.016;
+      if (rest === "pollen" && !mqReduce.matches) stepMotes();
       hold += (holdTo - hold) * 0.05;
       if (lx < -1000){ lx = tx; ly = ty; }
       lx += (tx - lx) * 0.11; ly += (ty - ly) * 0.11;
@@ -642,8 +917,8 @@
 
       if (mode !== "strings"){
         if (morphTo > 0){
-          morph += (morphTo - morph) * (mode === "station" ? 0.019 : 0.045);
-          if (morph > 0.985){ morph = 1; mode = "strings"; }
+          morph += (morphTo - morph) * (mode === "grove" ? 0.045 : 0.019);
+          if (morph > 0.985){ morph = 1; mode = rest; }
         } else if (mode === "grove" && !mqReduce.matches){
           /* наезд: поле едет на зрителя, ушедшее возвращается к горизонту */
           for (var j = 0; j < plants.length; j++){
@@ -660,14 +935,17 @@
       ctx.lineJoin = "round";
       ctx.strokeStyle = col;
       ctx.fillStyle = col;
-      if (mode === "station"){
+      if (mode === "oblivion"){
+        drawOblivion(morph);
+        if (morph > 0.02) drawRest(morph * morph);
+      } else if (mode === "station"){
         drawStation(morph);
-        if (morph > 0.02) drawThreads(morph * morph);
-      } else if (mode === "strings"){
-        drawThreads(1);
+        if (morph > 0.02) drawRest(morph * morph);
+      } else if (mode === "strings" || mode === "pollen"){
+        drawRest(1);
       } else {
         drawGrove();
-        if (morph > 0.02) drawThreads(morph * morph);
+        if (morph > 0.02) drawRest(morph * morph);
       }
       ctx.globalAlpha = 1;
     }
@@ -704,6 +982,8 @@
       if (mqReduce.matches){ stop(); holdTo = 0; hold = 0; draw(); } else start();
     });
 
+    rest = (document.body.dataset.field === "pollen") ? "pollen" : "strings";
+    if (!document.getElementById("gate")) mode = rest;
     readColor();
     if (size()){ draw(); start(); }
 
@@ -715,10 +995,11 @@
     return {
       grove: function(){ begin("grove"); },
       station: function(){ begin("station"); },
+      oblivion: function(){ begin("oblivion"); },
       settle: function(){
-        if (mode === "grove" || mode === "station"){
+        if (mode === "grove" || mode === "station" || mode === "oblivion"){
           morphTo = 1;
-          if (mqReduce.matches){ morph = 1; mode = "strings"; draw(); }
+          if (mqReduce.matches){ morph = 1; mode = rest; draw(); }
         }
       }
     };
