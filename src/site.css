@@ -71,6 +71,38 @@ body[data-book="v-soznanii"]{
     --field:rgba(150,196,246,.58); --veil:rgba(11,18,32,.82);
 }
 
+/* ---------- третья книга: цвета сняты с её обложки ---------- */
+body[data-book="probuzhdenie"]{
+  --bg:#F6EFDE;
+  --surface:#FDF9F0;
+  --ink:#2A2112;
+  --ink-2:#5E5136;
+  --ink-3:#72634A;
+  --rule:#E3D7BC;
+  --accent:#8A6314;
+  --accent-2:#7F5A10;
+  --term-bg:#EEE4CC;
+  --term-ink:#6A5218;
+  --glow:rgba(190,150,60,.22);
+  --field:rgba(138,99,20,.58);
+  --veil:rgba(246,239,222,.84);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) body[data-book="probuzhdenie"]{
+    --bg:#171207; --surface:#211B0F; --ink:#F0E7D2; --ink-2:#BBAA87; --ink-3:#A29271;
+    --rule:#39301C; --accent:#E3C169; --accent-2:#C0A050;
+    --term-bg:#241D10; --term-ink:#D8C28A; --glow:rgba(226,193,105,.30);
+    --field:rgba(226,193,105,.56); --veil:rgba(23,18,7,.82);
+  }
+}
+:root[data-theme="dark"] body[data-book="probuzhdenie"]{
+    --bg:#171207; --surface:#211B0F; --ink:#F0E7D2; --ink-2:#BBAA87; --ink-3:#A29271;
+    --rule:#39301C; --accent:#E3C169; --accent-2:#C0A050;
+    --term-bg:#241D10; --term-ink:#D8C28A; --glow:rgba(226,193,105,.30);
+    --field:rgba(226,193,105,.56); --veil:rgba(23,18,7,.82);
+}
+
+
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}

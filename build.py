@@ -51,6 +51,15 @@ BOOKS = [
         "gate": "station",
         "alt": "синяя обложка: силуэт человека, внутри — второй силуэт и кольцо планеты",
     },
+    {
+        "file": "probuzhdenie.json",
+        "page": "probuzhdenie/",
+        "ch": "probuzhdenie/glava-{n}/",
+        "cover": "img/cover-probuzhdenie.jpg",
+        "rkey": "b3-",
+        "alt": "золотистая обложка: тёмный силуэт человека на фоне светлого круга, "
+               "сквозь него проступают ветви с листьями и второй силуэт",
+    },
 ]
 
 AUTHOR = "А.Л.О.Н."
@@ -228,11 +237,13 @@ def shelf(books):
         total = sum(c["chars"] for c in b["chapters"])
         n = len(b["chapters"])
         done = b.get("done", True)
-        meta = [AUTHOR, f"{n} {chapters_word(n)}", f"≈ {hours(total)} ч"]
+        meta = [AUTHOR]
+        if n:
+            meta += [f"{n} {chapters_word(n)}", f"≈ {hours(total)} ч"]
         meta.append(b["year"] if done else "пишется")
         note = b.get("lede") or (
             "Продолжение. Книга ещё пишется — главы появляются здесь по мере готовности.")
-        first = b["ch"].format(n=b["chapters"][0]["n"])
+        first = b["ch"].format(n=b["chapters"][0]["n"]) if n else ""
         out.append(f"""<li class="shelf-item{'' if done else ' shelf-wip'}">
           <a class="shelf-cover" href="{b['page']}" tabindex="-1" aria-hidden="true">
             <img src="{b['cover']}" alt="" width="1000" height="1600" loading="lazy">
@@ -242,7 +253,7 @@ def shelf(books):
             <p class="shelf-meta">{' · '.join(e(x) for x in meta if x)}</p>
             <p class="shelf-note">{e(note)}</p>
             <div class="actions">
-              <a class="btn btn-fill" href="{first}">Читать</a>
+              {f'<a class="btn btn-fill" href="{first}">Читать</a>' if first else ''}
               <a class="btn btn-quiet" href="{b['page']}">Подробнее</a>
             </div>
           </div>
@@ -326,7 +337,7 @@ def page_book(b):
     done = b.get("done", True)
     url = f"{SITE}/{b['page']}"
     cover = b["cover"]
-    first = link(b["page"], b["ch"].format(n=b["chapters"][0]["n"]))
+    first = link(b["page"], b["ch"].format(n=b["chapters"][0]["n"])) if n else ""
 
     if b["annotation"]:
         desc = strip_tags(b["annotation"][0])[:300]
@@ -341,7 +352,7 @@ def page_book(b):
         "author": {"@type": "Person", "name": AUTHOR, "url": SITE + "/"},
         "inLanguage": "ru",
         "bookFormat": "https://schema.org/EBook",
-        "numberOfPages": n,
+        **({"numberOfPages": n} if n else {}),
         "image": f"{SITE}/{cover}",
         "description": desc,
         "url": url,
@@ -350,7 +361,7 @@ def page_book(b):
             {"@type": "Chapter", "name": "Глава " + c["n"],
              "url": f"{SITE}/{b['ch'].format(n=c['n'])}"}
             for c in b["chapters"]
-        ],
+        ] or None,
     }
     if b["year"]:
         schema_book["datePublished"] = str(b["year"])
@@ -358,19 +369,31 @@ def page_book(b):
         schema_book["isPartOf"] = {"@type": "BookSeries", "name": "В сознание…"}
     schema = ld(schema_book)
 
-    facts = [AUTHOR,
-             f"{n} {chapters_word(n)}" + ("" if done else " открыто"),
-             f"≈ {hours(total)} часов чтения",
-             b["year"] if done else "книга пишется"]
+    facts = [AUTHOR]
+    if n:
+        facts += [f"{n} {chapters_word(n)}" + ("" if done else " открыто"),
+                  f"≈ {hours(total)} часов чтения"]
+    facts.append(b["year"] if done else "книга пишется")
     facts_html = "\n            ".join(f"<li>{e(x)}</li>" for x in facts if x)
 
+    if n:
+        reading = (f'<a class="btn btn-fill" href="{first}">Читать с начала</a>\n'
+                   f'            <a class="btn btn-quiet" id="resumeLink" data-book="{b["slug"]}"'
+                   f' data-base="{rel}{b["chdir"]}" data-short="1" href="{first}" hidden>Продолжить</a>')
+    else:
+        reading = (f'<a class="btn btn-fill" href="{e(dict(LINKS)["Telegram"])}"'
+                   f' target="_blank" rel="noopener">Узнать о выходе в Telegram</a>')
+
     ded = "<br>".join(b.get("dedication") or [])
+    epi = b.get("epigraph") or ""
     if b["annotation"]:
         intro = "\n            ".join(f"<p>{p}</p>" for p in b["annotation"])
     else:
         intro = (f'<p class="wip">Книга ещё пишется. Здесь выложено {n} {chapters_word(n)}; '
                  f'новые появляются по мере готовности — продолжение истории '
                  f'«{e(BOOKS[0]["title"])}».</p>')
+    if epi:
+        intro = f'<p class="dedic">{e(epi)}</p>\n            ' + intro
     if ded:
         intro += f'\n            <p class="dedic">{ded}</p>'
 
@@ -385,8 +408,12 @@ def page_book(b):
         f'<span class="min">{minutes(c["chars"])} мин</span></a></li>'
         for c in b["chapters"]
     )
-    title = (f"{b['title']} — оглавление и аннотация" if b["annotation"]
-             else f"{b['title']} — продолжение, оглавление")
+    if not n:
+        title = f"{b['title']} — о книге"
+    elif b["annotation"]:
+        title = f"{b['title']} — оглавление и аннотация"
+    else:
+        title = f"{b['title']} — продолжение, оглавление"
     out = head(title, desc, rel, url, schema, cover=cover)
     out = out.replace("<body>", f'<body{book_attrs(b)}>')
     if b.get("gate"):
@@ -420,8 +447,7 @@ def page_book(b):
             {intro}
           </div>
           <div class="actions" style="margin-top:1.6rem">
-            <a class="btn btn-fill" href="{first}">Читать с начала</a>
-            <a class="btn btn-quiet" id="resumeLink" data-book="{b['slug']}" data-base="{rel}{b['chdir']}" data-short="1" href="{first}" hidden>Продолжить</a>
+            {reading}
           </div>
         </div>
       </div>
@@ -437,11 +463,12 @@ def page_book(b):
   </div>
 """
     ask = ""
-    if not b.get("done", True):
+    if not b.get("done", True) and n:
         ask = (f'<p class="shelf-wip-ask">Пока это всё, что написано. '
                f'О новых главах я пишу в <a href="{e(dict(LINKS)["Telegram"])}"'
                f' target="_blank" rel="noopener">Telegram</a>.</p>')
-    out += f"""
+    if n:
+        out += f"""
   <div class="band">
     <div class="wrap">
       <h2 class="kicker">Оглавление</h2>
@@ -453,6 +480,8 @@ def page_book(b):
   </div>
 </main>
 """
+    else:
+        out += "</main>\n"
     out += footer(rel)
     write(b["page"] + "index.html", out)
     PAGES.append((b["page"], "0.9"))
