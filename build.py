@@ -564,7 +564,8 @@ def page_chapter(b, i):
     out += "    </nav>\n"
     if not nxt:
         if b.get("done", True):
-            out += f'    <p class="rend">Конец романа<br>{e(b["place"])} · 26.07.{b["year"]}</p>\n'
+            when = b.get("finished") or b.get("year", "")
+            out += f'    <p class="rend">Конец романа<br>{e(b["place"])} · {e(when)}</p>\n'
             if b is not BOOKS[-1]:
                 nxt_b = BOOKS[BOOKS.index(b) + 1]
                 out += ('    <div class="actions" style="justify-content:center;margin-top:1.6rem">\n'
