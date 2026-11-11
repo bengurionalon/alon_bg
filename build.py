@@ -88,6 +88,22 @@ PAGES = []          # (путь без ведущего слэша, приори
 STAMP = {}          # отпечатки стилей и скрипта, чтобы браузер не держал старые
 
 
+def stamp_file(path):
+    """Отпечаток содержимого файла — чтобы замена картинки доходила до читателя.
+
+    Без него обложку с прежним именем браузеры и CDN продолжают отдавать
+    из кэша, и новая обложка не появляется неделями.
+    """
+    if path not in STAMP:
+        try:
+            with open(path, "rb") as f:
+                STAMP[path] = hashlib.sha1(f.read()).hexdigest()[:8]
+        except OSError:
+            STAMP[path] = ""
+    v = STAMP[path]
+    return f"{path}?v={v}" if v else path
+
+
 def e(s):
     return html.escape(s, quote=True)
 
@@ -155,17 +171,17 @@ def head(title, desc, rel, url, extra="", theme_light="#F3EFF8", cover=None):
 <meta property="og:title" content="{e(title)}">
 <meta property="og:description" content="{e(desc)}">
 <meta property="og:url" content="{e(url)}">
-<meta property="og:image" content="{SITE}/{cover}">
+<meta property="og:image" content="{SITE}/{stamp_file(cover)}">
 <meta property="og:image:width" content="1000">
 <meta property="og:image:height" content="1600">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{e(title)}">
 <meta name="twitter:description" content="{e(desc)}">
-<meta name="twitter:image" content="{SITE}/{cover}">
+<meta name="twitter:image" content="{SITE}/{stamp_file(cover)}">
 <meta name="theme-color" content="{theme_light}" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#130F1D" media="(prefers-color-scheme: dark)">
-<link rel="icon" href="{rel}img/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="{rel}img/apple-touch-icon.png">
+<link rel="icon" href="{rel}{stamp_file('img/favicon.svg')}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{rel}{stamp_file('img/apple-touch-icon.png')}">
 <link rel="stylesheet" href="{rel}assets/fonts.css">
 <link rel="stylesheet" href="{rel}assets/site.css?v={STAMP.get('css','')}">
 {extra}</head>
@@ -250,7 +266,7 @@ def shelf(books):
         first = b["ch"].format(n=b["chapters"][0]["n"]) if n else ""
         out.append(f"""<li class="shelf-item{'' if done else ' shelf-wip'}">
           <a class="shelf-cover" href="{b['page']}" tabindex="-1" aria-hidden="true">
-            <img src="{b['cover']}" alt="" width="1000" height="1600" loading="lazy">
+            <img src="{stamp_file(b['cover'])}" alt="" width="1000" height="1600" loading="lazy">
           </a>
           <div class="shelf-body">
             <h3><a href="{b['page']}">{e(b['title'])}</a></h3>
@@ -436,7 +452,7 @@ def page_book(b):
           <div class="cover-halo" aria-hidden="true"></div>
           <div class="cover-stage">
             <div class="cover-plate">
-              <img src="{rel}{cover}" alt="Обложка романа «{e(b['title'])}»: {e(b['alt'])}" width="1000" height="1600">
+              <img src="{rel}{stamp_file(cover)}" alt="Обложка романа «{e(b['title'])}»: {e(b['alt'])}" width="1000" height="1600">
               <span class="cover-sheen" aria-hidden="true"></span>
               <span class="cover-edge" aria-hidden="true"></span>
             </div>
