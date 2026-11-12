@@ -150,7 +150,7 @@ def tag_paragraphs(src):
         if len(text) < 2:
             return m.group(0)
         pid = hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
-        return f"<p{attrs} data-p=\"{pid}\">{inner}</p>"
+        return f"<p{attrs} id=\"p-{pid}\" data-p=\"{pid}\">{inner}</p>"
     return re.sub(r"<p([^>]*)>(.*?)</p>", repl, src, flags=re.S)
 
 
@@ -718,6 +718,114 @@ def page_assets():
     STAMP["js"] = hashlib.sha1(js.encode("utf-8")).hexdigest()[:8]
 
 
+def page_notes(books):
+    """Страница, с которой автор разбирает заметки читателей.
+
+    Адрес не публикуется и в карту сайта не попадает; без ключа страница пуста.
+    Ключ хранится только в браузере автора, в разметке его нет.
+    """
+    where = {}
+    for b in books:
+        for i in range(len(b["chapters"])):
+            where[b["rkey"] + str(i + 1)] = {
+                "url": "../" + b["ch"].format(n=i + 1),
+                "book": b["title"],
+                "n": i + 1,
+            }
+    extra = '<meta name="robots" content="noindex, nofollow">'
+    out = head("Заметки читателей", "Служебная страница.", "../",
+               f"{SITE}/zametki/", extra)
+    out += '<canvas id="field" aria-hidden="true"></canvas>\n'
+    out += header("../")
+    out += """<main id="main">
+  <div class="band" style="border-top:0">
+    <div class="wrap">
+      <h1 class="page-title">Заметки читателей</h1>
+      <p class="lede">Всё, что читатели оставили на полях. Убранное со страниц
+         остаётся здесь — его можно вернуть.</p>
+      <form class="nt-form" id="keyForm" style="max-width:28rem">
+        <input class="nt-name" id="keyInput" type="password" style="flex:1 1 12rem"
+               placeholder="Ключ" aria-label="Ключ автора" autocomplete="off">
+        <button class="nt-send" type="submit">Войти</button>
+        <span class="nt-say" id="keySay" role="status"></span>
+      </form>
+      <div id="modList" style="margin-top:2rem"></div>
+    </div>
+  </div>
+</main>
+"""
+    out += f"""<script>
+(function(){{
+  var API = {json.dumps(API)};
+  var WHERE = {json.dumps(where, ensure_ascii=False)};
+  var MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+  var box = document.getElementById("modList");
+  var form = document.getElementById("keyForm");
+  var input = document.getElementById("keyInput");
+  var say = document.getElementById("keySay");
+  function key(v){{
+    try {{ if (v !== undefined) localStorage.setItem("alon.key", v);
+           return localStorage.getItem("alon.key") || ""; }} catch(e){{ return ""; }}
+  }}
+  function esc(s){{
+    return String(s).replace(/[&<>"]/g, function(c){{
+      return {{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c];
+    }});
+  }}
+  function when(ts){{
+    var d = new Date(ts);
+    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear();
+  }}
+  function load(){{
+    var k = key();
+    if (!k) {{ box.innerHTML = ""; return; }}
+    say.textContent = "…";
+    fetch(API + "/notes/new?key=" + encodeURIComponent(k))
+      .then(function(r){{ if (!r.ok) throw new Error(r.status); return r.json(); }})
+      .then(function(rows){{ say.textContent = ""; draw(rows); }})
+      .catch(function(){{ say.textContent = "Ключ не подошёл"; box.innerHTML = ""; }});
+  }}
+  function draw(rows){{
+    if (!rows.length) {{ box.innerHTML = '<p class="empty">Пока ничего нет.</p>'; return; }}
+    box.innerHTML = '<ul class="nt-list">' + rows.map(function(n){{
+      var w = WHERE[n.chapter] || null;
+      var link = w ? ('<a href="' + w.url + '#p-' + n.pid + '">'
+                      + esc(w.book) + ", глава " + w.n + "</a>") : esc(n.chapter);
+      return '<li class="nt' + (n.hidden ? " gone" : "") + (n.author ? " auth" : "") + '">'
+           + '<span class="nt-who">' + esc(n.name) + "</span> "
+           + '<span class="nt-body">' + esc(n.body) + "</span> "
+           + '<span class="nt-meta"><span class="nt-when">' + when(n.at) + "</span>"
+           + '<button type="button" class="nt-act" data-id="' + n.id + '" data-show="'
+           + (n.hidden ? "1" : "") + '">' + (n.hidden ? "вернуть" : "скрыть") + "</button>"
+           + '</span><br><span class="nt-where">' + link + "</span></li>";
+    }}).join("") + "</ul>";
+    box.querySelectorAll("[data-id]").forEach(function(b){{
+      b.addEventListener("click", function(){{
+        b.disabled = true;
+        fetch(API + "/note/hide", {{
+          method: "POST", headers: {{"Content-Type": "application/json"}},
+          body: JSON.stringify({{id: b.dataset.id, key: key(), show: !!b.dataset.show}})
+        }}).then(function(r){{ if (!r.ok) throw new Error(r.status); return r.json(); }})
+          .then(load)
+          .catch(function(){{ b.disabled = false; }});
+      }});
+    }});
+  }}
+  form.addEventListener("submit", function(ev){{
+    ev.preventDefault();
+    key(input.value.trim());
+    input.value = "";
+    load();
+  }});
+  if (key()) load();
+}})();
+</script>
+"""
+    out += footer("../")
+    write("zametki/index.html", out)
+
+
 def page_meta():
     today = date.today().isoformat()
     urls = "\n".join(
@@ -754,6 +862,7 @@ def main():
         for i in range(len(b["chapters"])):
             page_chapter(b, i)
     page_404()
+    page_notes(books)
     page_meta()
     total = sum(len(b["chapters"]) for b in books)
     print(f"готово: {len(PAGES)} страниц, книг — {len(books)}, глав — {total}")

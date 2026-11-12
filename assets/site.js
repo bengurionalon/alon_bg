@@ -37,6 +37,14 @@
     return v;
   }
 
+  /* имя читателя помнится между главами, чтобы не вводить его каждый раз */
+  function savedName(v){
+    if (v !== undefined){ store("alon.name", v); return v; }
+    return store("alon.name") || "";
+  }
+  /* ключ автора появляется только в его браузере — со страницы разбора заметок */
+  function authorKey(){ return store("alon.key") || ""; }
+
   var Remote = (function(){
     function call(path, opts){
       return fetch(API + path, opts).then(function(r){
@@ -78,13 +86,25 @@
       saveMine: function(chapter, map){
         mine[chapter] = map;
         try { localStorage.setItem("alon.myreactions", JSON.stringify(mine)); } catch(e){}
+      },
+      listNotes: function(chapter){
+        return call("/notes?chapter=" + encodeURIComponent(chapter));
+      },
+      addNote: function(chapter, n){
+        return post("/note", {chapter: chapter, pid: n.pid, parent: n.parent || "",
+                              name: n.name, body: n.body, voter: voter(),
+                              website: "", key: authorKey()});
+      },
+      dropNote: function(chapter, id){
+        return post("/note/drop", {id: id, voter: voter()});
       }
     };
   })();
 
   var Local = (function(){
     var KEY_RV = "alon.reviews", KEY_CM = "alon.reactions",
-        KEY_MINE = "alon.myreactions", KEY_RATE = "alon.rate";
+        KEY_MINE = "alon.myreactions", KEY_RATE = "alon.rate",
+        KEY_NT = "alon.notes";
     function load(k){
       var empty = (k === KEY_RV) ? "[]" : "{}";
       try { return JSON.parse(localStorage.getItem(k) || empty); }
@@ -135,6 +155,29 @@
         var all = load(KEY_MINE);
         all[chapter] = map;
         save(KEY_MINE, all);
+      },
+      /* заметки: {глава: {абзац: [ {id, parent, name, body, at, author} ]}} */
+      listNotes: function(chapter){
+        return Promise.resolve(load(KEY_NT)[chapter] || {});
+      },
+      addNote: function(chapter, n){
+        var all = load(KEY_NT);
+        var ch = all[chapter] = all[chapter] || {};
+        var list = ch[n.pid] = ch[n.pid] || [];
+        list.push({id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
+                   parent: n.parent || "", name: n.name, body: n.body,
+                   at: Date.now(), author: 0});
+        save(KEY_NT, all);
+        return Promise.resolve(ch);
+      },
+      dropNote: function(chapter, id){
+        var all = load(KEY_NT);
+        var ch = all[chapter] || {};
+        Object.keys(ch).forEach(function(pid){
+          ch[pid] = ch[pid].filter(function(n){ return n.id !== id && n.parent !== id; });
+        });
+        save(KEY_NT, all);
+        return Promise.resolve(ch);
       }
     };
   })();
@@ -146,6 +189,16 @@
   function when(ts){
     var d = new Date(ts);
     return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear();
+  }
+  /* для заметки на полях длинная дата лишняя: она длиннее самой заметки */
+  function briefly(ts){
+    var d = new Date(ts), now = new Date();
+    var day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diff = Math.floor((day - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+    if (diff <= 0) return "сегодня";
+    if (diff === 1) return "вчера";
+    return d.getDate() + " " + MONTHS[d.getMonth()]
+         + (d.getFullYear() === now.getFullYear() ? "" : " " + d.getFullYear());
   }
   function esc(s){
     return String(s).replace(/[&<>"]/g, function(ch){
@@ -1373,6 +1426,201 @@
 
       document.addEventListener("click", close);
       document.addEventListener("keydown", function(e){ if (e.key === "Escape") close(); });
+    })();
+
+    /* ---- заметки на полях: короткий разговор под абзацем ---- */
+    (function(){
+      var paras = text.querySelectorAll("p[data-p]");
+      if (!paras.length) return;
+      var MAX = 100, NAME_MAX = 24;
+      var notes = {}, open = null, mineIds = {};
+      try { mineIds = JSON.parse(localStorage.getItem("alon.mynotes") || "{}"); } catch(e){}
+
+      Store.listNotes(rkey).then(function(d){
+        notes = d || {};
+      }).catch(function(){
+        notes = {};          /* хранилище молчит — текст важнее разговора вокруг */
+      }).then(function(){
+        for (var i = 0; i < paras.length; i++) mark(paras[i]);
+        watch();
+      });
+
+      function list(pid){ return notes[pid] || []; }
+      function roots(pid){
+        return list(pid).filter(function(n){ return !n.parent; });
+      }
+      function kids(pid, id){
+        return list(pid).filter(function(n){ return n.parent === id; });
+      }
+
+      /* сколько заметок — видно только на прочитанном абзаце: число над
+         непрочитанным куском само по себе говорит, что там что-то случится */
+      function watch(){
+        if (!window.IntersectionObserver) return;
+        var io = new IntersectionObserver(function(entries){
+          entries.forEach(function(en){
+            if (en.boundingClientRect.bottom < en.rootBounds.top + 1){
+              en.target.classList.add("read");
+              mark(en.target);
+              io.unobserve(en.target);
+            }
+          });
+        }, {rootMargin: "-35% 0px 0px 0px", threshold: 0});
+        for (var i = 0; i < paras.length; i++) io.observe(paras[i]);
+      }
+
+      function mark(p){
+        var n = list(p.dataset.p).length;
+        var seen = p.classList.contains("read");
+        var b = p.querySelector(".nmark");
+        if (!b){
+          b = document.createElement("button");
+          b.type = "button";
+          b.className = "nmark";
+          b.setAttribute("aria-expanded", "false");
+          b.addEventListener("click", function(ev){ ev.stopPropagation(); toggle(p, b); });
+          p.appendChild(b);
+        }
+        b.textContent = (n && seen) ? String(n) : "✎";
+        b.classList.toggle("has", !!(n && seen));
+        b.setAttribute("aria-label", (n && seen)
+          ? "Заметки читателей к абзацу: " + n + ". Открыть"
+          : "Написать заметку к абзацу");
+      }
+
+      function shut(){
+        if (!open) return;
+        open.box.remove();
+        open.btn.setAttribute("aria-expanded", "false");
+        open = null;
+      }
+
+      function toggle(p, btn){
+        if (open && open.p === p){ shut(); return; }
+        shut();
+        p.classList.add("read");      /* открыл сам — значит готов читать чужое */
+        var box = document.createElement("div");
+        box.className = "thread";
+        p.insertAdjacentElement("afterend", box);
+        open = {p: p, btn: btn, box: box, reply: ""};
+        btn.setAttribute("aria-expanded", "true");
+        draw();
+        mark(p);
+      }
+
+      function row(n, isReply){
+        var own = !!mineIds[n.id];
+        return '<li class="nt' + (isReply ? " sub" : "") + (n.author ? " auth" : "") + '">'
+             + '<span class="nt-who">' + esc(n.name) + (n.author ? ' <span class="nt-tag">автор</span>' : "")
+             + '</span> '
+             + '<span class="nt-body">' + esc(n.body) + "</span> "
+             + '<span class="nt-meta">'
+             + '<span class="nt-when">' + briefly(n.at) + "</span>"
+             + (isReply ? "" : '<button type="button" class="nt-act" data-reply="' + n.id + '">ответить</button>')
+             + (own ? '<button type="button" class="nt-act" data-drop="' + n.id + '">убрать</button>' : "")
+             + "</span></li>";
+      }
+
+      function form(parent){
+        var name = esc(savedName());
+        return '<form class="nt-form" data-parent="' + esc(parent || "") + '">'
+             + '<input class="nt-name" type="text" maxlength="' + NAME_MAX + '" required'
+             + ' placeholder="Имя" value="' + name + '" aria-label="Ваше имя">'
+             + '<input class="nt-text" type="text" maxlength="' + MAX + '" required'
+             + ' placeholder="' + (parent ? "Ответ" : "Короткая заметка") + '"'
+             + ' aria-label="Заметка, не длиннее ' + MAX + ' знаков">'
+             + '<span class="nt-left">' + MAX + "</span>"
+             + '<button type="submit" class="nt-send">' + (parent ? "Ответить" : "Оставить") + "</button>"
+             + '<span class="nt-say" role="status"></span>'
+             + "</form>";
+      }
+
+      function draw(){
+        var pid = open.p.dataset.p;
+        var rs = roots(pid);
+        var html = "";
+        if (rs.length){
+          html += '<ul class="nt-list">';
+          rs.forEach(function(n){
+            html += row(n, false);
+            kids(pid, n.id).forEach(function(k){ html += row(k, true); });
+            if (open.reply === n.id) html += '<li class="nt sub">' + form(n.id) + "</li>";
+          });
+          html += "</ul>";
+        } else {
+          html += '<p class="nt-none">Пока никто не отметился. Скажите первым — не длиннее ста знаков.</p>';
+        }
+        if (!open.reply) html += form("");
+        open.box.innerHTML = html;
+        wire();
+      }
+
+      function wire(){
+        open.box.querySelectorAll("[data-reply]").forEach(function(b){
+          b.addEventListener("click", function(){
+            open.reply = (open.reply === b.dataset.reply) ? "" : b.dataset.reply;
+            draw();
+            var f = open.box.querySelector(".nt-text");
+            if (f) f.focus();
+          });
+        });
+        open.box.querySelectorAll("[data-drop]").forEach(function(b){
+          b.addEventListener("click", function(){
+            var id = b.dataset.drop;
+            b.disabled = true;
+            Store.dropNote(rkey, id).then(function(d){
+              notes = d || notes;
+              delete mineIds[id];
+              try { localStorage.setItem("alon.mynotes", JSON.stringify(mineIds)); } catch(e){}
+              draw();
+              mark(open.p);
+            }).catch(function(){ b.disabled = false; });
+          });
+        });
+
+        var f = open.box.querySelector(".nt-form");
+        if (!f) return;
+        var ta = f.querySelector(".nt-text"), left = f.querySelector(".nt-left"),
+            say = f.querySelector(".nt-say");
+        ta.addEventListener("input", function(){
+          left.textContent = String(MAX - ta.value.length);
+          left.classList.toggle("tight", ta.value.length > MAX - 15);
+        });
+        f.addEventListener("submit", function(ev){
+          ev.preventDefault();
+          var nm = clean(f.querySelector(".nt-name").value);
+          var tx = clean(ta.value);
+          if (nm.length < 2){ say.textContent = "Имя покороче двух букв не годится"; return; }
+          if (!tx){ say.textContent = "Пустую заметку не отправишь"; return; }
+          if (looksLikeSpam(tx)){ say.textContent = "Ссылки здесь не живут"; return; }
+          savedName(nm);
+          var btn = f.querySelector(".nt-send");
+          btn.disabled = true; say.textContent = "…";
+          Store.addNote(rkey, {pid: open.p.dataset.p, parent: f.dataset.parent,
+                               name: nm, body: tx})
+            .then(function(d){
+              notes = d || notes;
+              /* чтобы читатель мог убрать своё, запоминаем, что здесь его */
+              var was = {};
+              list(open.p.dataset.p).forEach(function(n){
+                if (n.name === nm && n.body === tx) was[n.id] = 1;
+              });
+              Object.keys(was).forEach(function(id){ mineIds[id] = 1; });
+              try { localStorage.setItem("alon.mynotes", JSON.stringify(mineIds)); } catch(e){}
+              open.reply = "";
+              draw();
+              mark(open.p);
+            })
+            .catch(function(err){
+              btn.disabled = false;
+              say.textContent = (err && err.code === "too many")
+                ? "Слишком часто — переждите немного"
+                : "Не отправилось. Попробуйте ещё раз";
+            });
+        });
+      }
+
+      document.addEventListener("keydown", function(e){ if (e.key === "Escape") shut(); });
     })();
 
     /* стрелки листают главы */

@@ -6,6 +6,11 @@
  *   POST /react                 { chapter, pid, voter, emoji }  emoji:"" снимает
  *   GET  /reviews               → [ { id, name, body, at } ]
  *   POST /reviews               { name, body, voter, website }
+ *   GET  /notes?chapter=b2-1    → { "<абзац>": [ { id, parent, name, body, at, author } ] }
+ *   POST /note                  { chapter, pid, parent, name, body, voter, website }
+ *   POST /note/drop             { id, voter }            свою заметку можно убрать
+ *   GET  /notes/new?key=…       последние заметки со всего сайта — для автора
+ *   POST /note/hide             { id, key }              убрать чужую — только автору
  *
  * Привязка D1 называется DB. Секрет SALT — любая длинная случайная строка,
  * нужен, чтобы отпечатки адресов нельзя было подобрать обратно.
@@ -22,6 +27,10 @@ const EMOJI = ["😮", "😨", "💔", "🔥", "😢", "🤔", "😍", "😡"];
 const REVIEW_MIN = 100;
 const REVIEW_MAX = 2000;
 const NAME_MAX = 40;
+
+/* Заметка на полях — короткая реплика, не отзыв: сто знаков и ни одним больше. */
+const NOTE_MAX = 100;
+const NOTE_NAME_MAX = 24;
 
 export default {
   async fetch(request, env) {
@@ -49,6 +58,11 @@ export default {
       if (request.method === "POST" && path === "/react") return await postReact(env, request, json);
       if (request.method === "GET" && path === "/reviews") return await getReviews(env, json);
       if (request.method === "POST" && path === "/reviews") return await postReview(env, request, json);
+      if (request.method === "GET" && path === "/notes") return await getNotes(env, url, json);
+      if (request.method === "GET" && path === "/notes/new") return await getFresh(env, url, json);
+      if (request.method === "POST" && path === "/note") return await postNote(env, request, json);
+      if (request.method === "POST" && path === "/note/drop") return await dropNote(env, request, json);
+      if (request.method === "POST" && path === "/note/hide") return await hideNote(env, request, json);
       return json({ error: "not found" }, 404);
     } catch (err) {
       return json({ error: "server", detail: String(err && err.message || err) }, 500);
@@ -131,6 +145,117 @@ async function postReview(env, request, json) {
     .bind(id, name, text, Date.now())
     .run();
   return json({ ok: true, id });
+}
+
+/* ---------- заметки на полях ---------- */
+
+/** Все заметки главы, разложенные по абзацам: корневые по времени, ответы следом. */
+async function getNotes(env, url, json) {
+  const chapter = (url.searchParams.get("chapter") || "").slice(0, 8);
+  if (!chapter) return json({});
+  const { results } = await env.DB
+    .prepare(
+      "SELECT id, pid, parent, name, body, author, at FROM notes " +
+      "WHERE chapter = ? AND hidden = 0 ORDER BY at ASC LIMIT 2000"
+    )
+    .bind(chapter)
+    .all();
+  const out = {};
+  for (const r of results || []) (out[r.pid] = out[r.pid] || []).push(r);
+  return json(out, 200, { "Cache-Control": "no-store" });
+}
+
+/** Свежие заметки со всего сайта — страница, с которой автор их разбирает. */
+async function getFresh(env, url, json) {
+  if (!admin(env, url.searchParams.get("key"))) return json({ error: "key" }, 403);
+  const { results } = await env.DB
+    .prepare(
+      "SELECT id, chapter, pid, parent, name, body, author, at, hidden FROM notes " +
+      "ORDER BY at DESC LIMIT 400"
+    )
+    .all();
+  return json(results || [], 200, { "Cache-Control": "no-store" });
+}
+
+async function postNote(env, request, json) {
+  const b = await body(request);
+  if (str(b.website, 80)) return json({ ok: true });          // ловушка для ботов
+
+  const chapter = str(b.chapter, 8);
+  const pid = str(b.pid, 32);
+  const parent = str(b.parent, 64);
+  const voter = str(b.voter, 64);
+  const name = clean(str(b.name, NOTE_NAME_MAX));
+  const text = clean(str(b.body, NOTE_MAX + 40));
+
+  if (!chapter || !pid || !voter) return json({ error: "bad request" }, 400);
+  if (name.length < 2) return json({ error: "name" }, 400);
+  if (!text) return json({ error: "empty" }, 400);
+  if ([...text].length > NOTE_MAX) return json({ error: "long", max: NOTE_MAX }, 400);
+  if (/https?:\/\/|www\.|\[url|<a\s/i.test(text)) return json({ error: "links" }, 400);
+
+  /* ответ цепляется только к существующей заметке того же абзаца,
+     и только на один уровень: разговор под абзацем, а не дерево */
+  if (parent) {
+    const up = await env.DB
+      .prepare("SELECT parent FROM notes WHERE id = ? AND chapter = ? AND pid = ?")
+      .bind(parent, chapter, pid)
+      .first();
+    if (!up) return json({ error: "parent" }, 400);
+    if (up.parent) return json({ error: "depth" }, 400);
+  }
+
+  const key = str(b.key, 64);
+  const mine = admin(env, key) ? 1 : 0;
+  if (!mine && !(await allow(env, request, "note", 12, 600))) return json({ error: "too many" }, 429);
+
+  const id = crypto.randomUUID();
+  await env.DB
+    .prepare(
+      "INSERT INTO notes (id, chapter, pid, parent, name, body, voter, author, at, hidden) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
+    )
+    .bind(id, chapter, pid, parent, name, text, voter, mine, Date.now())
+    .run();
+
+  const url = new URL(request.url);
+  url.searchParams.set("chapter", chapter);
+  return await getNotes(env, url, json);
+}
+
+/** Свою заметку читатель убирает сам: сверяем знак браузера, записи не остаётся. */
+async function dropNote(env, request, json) {
+  const b = await body(request);
+  const id = str(b.id, 64), voter = str(b.voter, 64);
+  if (!id || !voter) return json({ error: "bad request" }, 400);
+  const row = await env.DB.prepare("SELECT chapter FROM notes WHERE id = ? AND voter = ?")
+    .bind(id, voter).first();
+  if (!row) return json({ error: "not yours" }, 403);
+  await env.DB.prepare("DELETE FROM notes WHERE id = ? OR parent = ?").bind(id, id).run();
+  const url = new URL(request.url);
+  url.searchParams.set("chapter", row.chapter);
+  return await getNotes(env, url, json);
+}
+
+/** Автор убирает чужое: заметка остаётся в базе, но со страницы уходит. */
+async function hideNote(env, request, json) {
+  const b = await body(request);
+  if (!admin(env, str(b.key, 64))) return json({ error: "key" }, 403);
+  const id = str(b.id, 64);
+  if (!id) return json({ error: "bad request" }, 400);
+  const back = b.show ? 0 : 1;
+  await env.DB.prepare("UPDATE notes SET hidden = ? WHERE id = ? OR parent = ?")
+    .bind(back, id, id).run();
+  return json({ ok: true, hidden: back });
+}
+
+/** Ключ автора задаётся секретом ADMIN. Сравнение без ветвления по длине. */
+function admin(env, key) {
+  const want = env.ADMIN || "";
+  if (!want || !key || key.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ key.charCodeAt(i);
+  return diff === 0;
 }
 
 /* ---------- вспомогательное ---------- */

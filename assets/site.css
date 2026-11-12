@@ -376,6 +376,56 @@ details[open] summary{color:var(--accent);margin-bottom:.9rem}
   display:inline-flex;align-items:center;gap:.18em;padding:.22rem .34rem;border:1px solid var(--rule)}
 .rchip.mine{color:var(--accent);border-color:var(--accent-2)}
 
+/* ---------- заметки на полях ---------- */
+.nmark{
+  font-family:var(--font-mono);font-size:.72rem;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:1.6rem;height:1.6rem;padding:0;
+  color:var(--ink-3);background:var(--bg);border:1px solid var(--rule);
+  opacity:0;transition:opacity .18s,color .18s,border-color .18s;text-indent:0;vertical-align:middle}
+.nmark:hover,.nmark:focus-visible,.nmark[aria-expanded="true"]{opacity:1;color:var(--accent);border-color:var(--accent)}
+.nmark.has{opacity:1;color:var(--accent);border-color:var(--accent-2)}
+.text p:hover > .nmark{opacity:.8}
+@media (hover:none){.nmark{opacity:.45}}
+@media (min-width:60rem){.nmark{position:absolute;left:100%;top:2.05em;margin-left:.85rem}}
+@media (max-width:59.99rem){.nmark{margin-left:.3em;position:static}}
+
+.thread{margin:.6rem 0 1.6rem;padding:.9rem 1rem;background:var(--term-bg);
+  border:1px solid var(--rule);text-indent:0;font-size:.95rem}
+.nt-list{list-style:none;margin:0 0 .9rem;padding:0;display:flex;flex-direction:column;gap:.55rem}
+.nt{margin:0;line-height:1.45;color:var(--ink-2)}
+.nt.sub{margin-left:1.3rem;padding-left:.7rem;border-left:1px solid var(--rule)}
+.nt-who{font-family:var(--font-display);font-weight:500;color:var(--ink)}
+.nt-tag{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent);border:1px solid var(--accent-2);padding:.1rem .25rem;vertical-align:.1em}
+.nt.auth .nt-body{color:var(--ink)}
+.nt-meta{white-space:nowrap}
+.nt-when{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.06em;color:var(--ink-3)}
+.nt-act{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.07em;text-transform:lowercase;
+  color:var(--ink-3);background:none;border:none;padding:0;margin-left:.5rem;transition:color .15s}
+.nt-act:hover{color:var(--accent)}
+.nt-none{margin:0 0 .9rem;color:var(--ink-3);font-size:.9rem}
+.nt-where{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.06em}
+.nt-where a{color:var(--ink-3);border-bottom:1px solid var(--rule)}
+.nt-where a:hover{color:var(--accent);border-color:var(--accent-2)}
+.nt.gone{opacity:.45}
+.nt.gone .nt-body{text-decoration:line-through}
+
+.nt-form{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.nt-name{flex:0 0 7.5rem}
+.nt-text{flex:1 1 14rem;min-width:0}
+.nt-form input{font:inherit;font-size:.92rem;color:var(--ink);background:var(--bg);
+  border:1px solid var(--rule);padding:.42rem .55rem}
+.nt-form input:focus-visible{outline:none;border-color:var(--accent)}
+.nt-left{font-family:var(--font-mono);font-size:.64rem;color:var(--ink-3);min-width:1.6rem;text-align:right}
+.nt-left.tight{color:var(--accent)}
+.nt-send{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--bg);background:var(--accent);border:1px solid var(--accent);padding:.45rem .7rem;
+  transition:opacity .15s}
+.nt-send:hover{opacity:.85}
+.nt-send:disabled{opacity:.5}
+.nt-say{flex:1 1 100%;font-size:.8rem;color:var(--ink-3)}
+
 /* ---------- misc ---------- */
 .resume{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;margin-top:1.4rem;padding:.85rem 1rem;
   background:var(--surface);border:1px solid var(--rule)}

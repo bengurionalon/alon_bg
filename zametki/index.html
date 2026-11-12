@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заметки читателей</title>
+<meta name="description" content="Служебная страница.">
+<link rel="canonical" href="https://bengurionalon.github.io/alon_bg/zametki/">
+<meta property="og:type" content="book">
+<meta property="og:site_name" content="А.Л.О.Н.">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:title" content="Заметки читателей">
+<meta property="og:description" content="Служебная страница.">
+<meta property="og:url" content="https://bengurionalon.github.io/alon_bg/zametki/">
+<meta property="og:image" content="https://bengurionalon.github.io/alon_bg/img/cover-v-soznanie.jpg?v=19cae7b6">
+<meta property="og:image:width" content="1000">
+<meta property="og:image:height" content="1600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Заметки читателей">
+<meta name="twitter:description" content="Служебная страница.">
+<meta name="twitter:image" content="https://bengurionalon.github.io/alon_bg/img/cover-v-soznanie.jpg?v=19cae7b6">
+<meta name="theme-color" content="#F3EFF8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#130F1D" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../img/favicon.svg?v=5925637b" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png?v=08c7c428">
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css?v=02eb811d">
+<meta name="robots" content="noindex, nofollow"></head>
+<body>
+<a class="skip" href="#main">К содержимому</a>
+<canvas id="field" aria-hidden="true"></canvas>
+<header class="site">
+  <div class="wrap">
+    <a class="mark" href="../">А.Л.О.Н.</a>
+    <nav aria-label="Основное меню">
+      <a href="../#knigi">Книги</a>
+      <a href="../otzyvy/">Отзывы</a>
+      <a href="../#avtor">Автор</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <div class="band" style="border-top:0">
+    <div class="wrap">
+      <h1 class="page-title">Заметки читателей</h1>
+      <p class="lede">Всё, что читатели оставили на полях. Убранное со страниц
+         остаётся здесь — его можно вернуть.</p>
+      <form class="nt-form" id="keyForm" style="max-width:28rem">
+        <input class="nt-name" id="keyInput" type="password" style="flex:1 1 12rem"
+               placeholder="Ключ" aria-label="Ключ автора" autocomplete="off">
+        <button class="nt-send" type="submit">Войти</button>
+        <span class="nt-say" id="keySay" role="status"></span>
+      </form>
+      <div id="modList" style="margin-top:2rem"></div>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+  var API = "https://alon-api.bengurionalon.workers.dev";
+  var WHERE = {"1": {"url": "../glava-1/", "book": "В сознание…", "n": 1}, "2": {"url": "../glava-2/", "book": "В сознание…", "n": 2}, "3": {"url": "../glava-3/", "book": "В сознание…", "n": 3}, "4": {"url": "../glava-4/", "book": "В сознание…", "n": 4}, "5": {"url": "../glava-5/", "book": "В сознание…", "n": 5}, "6": {"url": "../glava-6/", "book": "В сознание…", "n": 6}, "7": {"url": "../glava-7/", "book": "В сознание…", "n": 7}, "8": {"url": "../glava-8/", "book": "В сознание…", "n": 8}, "9": {"url": "../glava-9/", "book": "В сознание…", "n": 9}, "10": {"url": "../glava-10/", "book": "В сознание…", "n": 10}, "11": {"url": "../glava-11/", "book": "В сознание…", "n": 11}, "12": {"url": "../glava-12/", "book": "В сознание…", "n": 12}, "13": {"url": "../glava-13/", "book": "В сознание…", "n": 13}, "14": {"url": "../glava-14/", "book": "В сознание…", "n": 14}, "15": {"url": "../glava-15/", "book": "В сознание…", "n": 15}, "16": {"url": "../glava-16/", "book": "В сознание…", "n": 16}, "17": {"url": "../glava-17/", "book": "В сознание…", "n": 17}, "18": {"url": "../glava-18/", "book": "В сознание…", "n": 18}, "19": {"url": "../glava-19/", "book": "В сознание…", "n": 19}, "20": {"url": "../glava-20/", "book": "В сознание…", "n": 20}, "21": {"url": "../glava-21/", "book": "В сознание…", "n": 21}, "22": {"url": "../glava-22/", "book": "В сознание…", "n": 22}, "23": {"url": "../glava-23/", "book": "В сознание…", "n": 23}, "24": {"url": "../glava-24/", "book": "В сознание…", "n": 24}, "25": {"url": "../glava-25/", "book": "В сознание…", "n": 25}, "b2-1": {"url": "../v-soznanii/glava-1/", "book": "…В сознании", "n": 1}, "b2-2": {"url": "../v-soznanii/glava-2/", "book": "…В сознании", "n": 2}, "b2-3": {"url": "../v-soznanii/glava-3/", "book": "…В сознании", "n": 3}, "b2-4": {"url": "../v-soznanii/glava-4/", "book": "…В сознании", "n": 4}, "b2-5": {"url": "../v-soznanii/glava-5/", "book": "…В сознании", "n": 5}, "b2-6": {"url": "../v-soznanii/glava-6/", "book": "…В сознании", "n": 6}, "b2-7": {"url": "../v-soznanii/glava-7/", "book": "…В сознании", "n": 7}, "b2-8": {"url": "../v-soznanii/glava-8/", "book": "…В сознании", "n": 8}, "b2-9": {"url": "../v-soznanii/glava-9/", "book": "…В сознании", "n": 9}, "b2-10": {"url": "../v-soznanii/glava-10/", "book": "…В сознании", "n": 10}, "b2-11": {"url": "../v-soznanii/glava-11/", "book": "…В сознании", "n": 11}, "b2-12": {"url": "../v-soznanii/glava-12/", "book": "…В сознании", "n": 12}, "b2-13": {"url": "../v-soznanii/glava-13/", "book": "…В сознании", "n": 13}};
+  var MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+  var box = document.getElementById("modList");
+  var form = document.getElementById("keyForm");
+  var input = document.getElementById("keyInput");
+  var say = document.getElementById("keySay");
+  function key(v){
+    try { if (v !== undefined) localStorage.setItem("alon.key", v);
+           return localStorage.getItem("alon.key") || ""; } catch(e){ return ""; }
+  }
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];
+    });
+  }
+  function when(ts){
+    var d = new Date(ts);
+    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear();
+  }
+  function load(){
+    var k = key();
+    if (!k) { box.innerHTML = ""; return; }
+    say.textContent = "…";
+    fetch(API + "/notes/new?key=" + encodeURIComponent(k))
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(rows){ say.textContent = ""; draw(rows); })
+      .catch(function(){ say.textContent = "Ключ не подошёл"; box.innerHTML = ""; });
+  }
+  function draw(rows){
+    if (!rows.length) { box.innerHTML = '<p class="empty">Пока ничего нет.</p>'; return; }
+    box.innerHTML = '<ul class="nt-list">' + rows.map(function(n){
+      var w = WHERE[n.chapter] || null;
+      var link = w ? ('<a href="' + w.url + '#p-' + n.pid + '">'
+                      + esc(w.book) + ", глава " + w.n + "</a>") : esc(n.chapter);
+      return '<li class="nt' + (n.hidden ? " gone" : "") + (n.author ? " auth" : "") + '">'
+           + '<span class="nt-who">' + esc(n.name) + "</span> "
+           + '<span class="nt-body">' + esc(n.body) + "</span> "
+           + '<span class="nt-meta"><span class="nt-when">' + when(n.at) + "</span>"
+           + '<button type="button" class="nt-act" data-id="' + n.id + '" data-show="'
+           + (n.hidden ? "1" : "") + '">' + (n.hidden ? "вернуть" : "скрыть") + "</button>"
+           + '</span><br><span class="nt-where">' + link + "</span></li>";
+    }).join("") + "</ul>";
+    box.querySelectorAll("[data-id]").forEach(function(b){
+      b.addEventListener("click", function(){
+        b.disabled = true;
+        fetch(API + "/note/hide", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: b.dataset.id, key: key(), show: !!b.dataset.show})
+        }).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(load)
+          .catch(function(){ b.disabled = false; });
+      });
+    });
+  }
+  form.addEventListener("submit", function(ev){
+    ev.preventDefault();
+    key(input.value.trim());
+    input.value = "";
+    load();
+  });
+  if (key()) load();
+})();
+</script>
+<footer class="foot">
+  <div class="wrap">
+    <span>© А.Л.О.Н., 2022</span>
+    <span class="foot-links">
+      <a href="https://t.me/ALON_BG" target="_blank" rel="noopener">Telegram</a>
+      <a href="https://author.today/u/alonbengur" target="_blank" rel="noopener">Author.Today</a>
+      <a href="https://www.litres.ru/author/a-l-o-n-32314078/" target="_blank" rel="noopener">Литрес</a>
+      <a href="https://www.instagram.com/al0n_bg?exln=MXZjdmlia3R0NGh6NQ==" target="_blank" rel="noopener">Instagram</a>
+    </span>
+  </div>
+</footer>
+<script src="../assets/site.js?v=035b9401" defer></script>
+</body>
+</html>
